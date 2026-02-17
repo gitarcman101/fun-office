@@ -357,11 +357,11 @@ body {
   border-radius: 3px;
   background: #d5d2c4;
   color: #4a4b42;
-  font-family: "Press Start 2P", monospace;
+  font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-weight: 700;
   font-size: 10px;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
   cursor: pointer;
-  text-transform: uppercase;
 }
 
 .desk-agent.status-active .name-tag { background: var(--status-active); color: #f5f6ea; }
@@ -430,11 +430,15 @@ body {
   letter-spacing: 1px;
   text-transform: uppercase;
   opacity: 0.8;
+  font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-weight: 500;
 }
 
 .crew-name {
   font-size: 15px;
   letter-spacing: 0.4px;
+  font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-weight: 800;
 }
 
 .status-pill {
@@ -442,7 +446,8 @@ body {
   border-radius: 7px;
   padding: 6px 8px;
   width: 100%;
-  font-family: "Orbitron", sans-serif;
+  font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.8px;
   text-transform: uppercase;

@@ -17,7 +17,8 @@ const HEARTBEAT_MS = 12000;
 
 const PM_SEAT_ID = "U2";
 const SEAT_IDS = ["U1", "U2", "U3", "U4", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "R1", "R2"];
-const AVAILABLE_SEATS = SEAT_IDS.filter((seatId) => seatId !== PM_SEAT_ID);
+const MAX_CONCURRENT_USERS = SEAT_IDS.length;
+const AVAILABLE_SEATS = SEAT_IDS;
 
 const AVATARS = [
   "assets/avatars/avatar-ops.svg",
@@ -211,7 +212,8 @@ function renderCrew(agents, updateMyStatus) {
 }
 
 function rerender(updateMyStatus = appState.updateMyStatus) {
-  const agents = [PM_AGENT, ...appState.participants].sort(sortBySeat);
+  const hasUserAtPmSeat = appState.participants.some((participant) => participant.seatId === PM_SEAT_ID);
+  const agents = (hasUserAtPmSeat ? [...appState.participants] : [PM_AGENT, ...appState.participants]).sort(sortBySeat);
   renderOffice(agents);
   renderCrew(agents, updateMyStatus);
 }
@@ -225,10 +227,10 @@ function pickSeatForLocal(currentSeatId) {
     appState.participants
       .filter((participant) => !participant.isLocal)
       .map((participant) => participant.seatId)
-      .filter((seatId) => seatId && seatId !== PM_SEAT_ID)
+      .filter((seatId) => seatId)
   );
 
-  if (currentSeatId && !takenByOthers.has(currentSeatId) && currentSeatId !== PM_SEAT_ID) {
+  if (currentSeatId && !takenByOthers.has(currentSeatId)) {
     return currentSeatId;
   }
   return AVAILABLE_SEATS.find((seatId) => !takenByOthers.has(seatId)) || null;
@@ -241,6 +243,7 @@ function updateSyncLabel(text) {
 function parsePresenceState(channel) {
   const state = channel.presenceState();
   const latestByClient = new Map();
+  const bestBySeat = new Map();
 
   Object.entries(state).forEach(([key, items]) => {
     const list = Array.isArray(items) ? items : [];
@@ -253,7 +256,21 @@ function parsePresenceState(channel) {
     });
   });
 
-  return Array.from(latestByClient.values()).map((item) => ({
+  Array.from(latestByClient.values()).forEach((item) => {
+    const prev = bestBySeat.get(item.seatId);
+    if (!prev) {
+      bestBySeat.set(item.seatId, item);
+      return;
+    }
+
+    const prevScore = `${prev.updatedAt || 0}-${prev.clientId}`;
+    const itemScore = `${item.updatedAt || 0}-${item.clientId}`;
+    if (itemScore > prevScore) {
+      bestBySeat.set(item.seatId, item);
+    }
+  });
+
+  return Array.from(bestBySeat.values()).map((item) => ({
     id: item.clientId,
     clientId: item.clientId,
     name: item.nickname,
@@ -312,7 +329,7 @@ function tryJoinWithNickname(rawName) {
   const preferredSeat = localStorage.getItem(`${NICKNAME_KEY}:seat:${appState.roomId}`) || "";
   const seatId = pickSeatForLocal(preferredSeat);
   if (!seatId) {
-    alert("현재 14석이 모두 사용 중입니다.");
+    alert(`현재 동시 접속 최대 ${MAX_CONCURRENT_USERS}명입니다. 잠시 후 재시도해주세요.`);
     return false;
   }
 
@@ -417,7 +434,7 @@ function initSupabaseRealtime() {
   channel
     .on("presence", { event: "sync" }, () => {
       refreshParticipants();
-      updateSyncLabel(`연결됨 / 접속 ${appState.participants.length + 1}명 / ${new Date().toLocaleTimeString()}`);
+      updateSyncLabel(`연결됨 / 접속 ${appState.participants.length}/${MAX_CONCURRENT_USERS}명 / ${new Date().toLocaleTimeString()}`);
     })
     .on("presence", { event: "join" }, () => {
       refreshParticipants();
