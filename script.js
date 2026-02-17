@@ -10,6 +10,7 @@ const STATUS_LABEL = {
 
 const CLIENT_KEY = "agentoffice_client_v1";
 const NICKNAME_KEY = "agentoffice_nickname_v2";
+const AVATAR_KEY = "agentoffice_avatar_v1";
 const ROOM_PARAM = "room";
 const SB_URL_KEY = "agentoffice_sb_url_v1";
 const SB_ANON_KEY = "agentoffice_sb_anon_v1";
@@ -34,13 +35,18 @@ const MAX_RECENT_MESSAGES = 5;
 const MAX_MESSAGES = 120;
 
 const AVATARS = [
-  "assets/avatars/avatar-ops.svg",
-  "assets/avatars/avatar-be.svg",
-  "assets/avatars/avatar-data.svg",
-  "assets/avatars/avatar-design.svg",
-  "assets/avatars/avatar-plan.svg",
-  "assets/avatars/avatar-qa.svg",
-  "assets/avatars/avatar-pm.svg"
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969749.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969755.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969774.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969777.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969789.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969801.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969802.svg",
+  "assets/avatars/vecteezy_cute-illustration-designs-for-the-characters-in-the-super_27969809.svg",
+  "assets/avatars/vecteezy_illustration-of-characters-in-super-mario-in-vector-cartoon_24804505.svg",
+  "assets/avatars/vecteezy_illustration-of-characters-in-super-mario-in-vector-cartoon_24804535.svg",
+  "assets/avatars/vecteezy_illustration-of-characters-in-super-mario-in-vector-cartoon_24804574.svg",
+  "assets/avatars/vecteezy_star-bonus-game-super-mario-video-game-90s_23079358.svg"
 ];
 
 const PM_AGENT = {
@@ -49,7 +55,7 @@ const PM_AGENT = {
   name: "김피엠",
   role: "PM",
   status: "active",
-  avatar: "assets/avatars/avatar-pm.svg",
+  avatar: AVATARS[0],
   seatId: PM_SEAT_ID,
   isLocal: false,
   isPm: true,
@@ -146,6 +152,23 @@ function hashText(text) {
 
 function avatarForName(name) {
   return AVATARS[hashText(name) % AVATARS.length];
+}
+
+function pickRandomAvatar() {
+  if (!AVATARS.length) return "";
+  return AVATARS[Math.floor(Math.random() * AVATARS.length)];
+}
+
+function resolveLocalAvatar() {
+  const storageKey = `${AVATAR_KEY}:${appState.roomId}:${appState.clientId}`;
+  const stored = localStorage.getItem(storageKey) || "";
+  if (stored && AVATARS.includes(stored)) {
+    return stored;
+  }
+
+  const next = pickRandomAvatar();
+  localStorage.setItem(storageKey, next);
+  return next;
 }
 
 function getMeetingRoomIdFromSeatId(seatId) {
@@ -686,7 +709,7 @@ function tryJoinWithNickname(rawName) {
     nickname,
     seatId,
     status: "focus",
-    avatar: avatarForName(nickname)
+    avatar: resolveLocalAvatar()
   });
 
   nicknameModal.classList.remove("is-open");
