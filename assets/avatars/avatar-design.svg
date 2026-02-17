@@ -1,8 +1,33 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect x="18" y="6" width="28" height="10" fill="#22336c"/>
-  <rect x="14" y="16" width="36" height="24" fill="#8ab9ff"/>
-  <rect x="20" y="22" width="8" height="8" fill="#18224c"/>
-  <rect x="36" y="22" width="8" height="8" fill="#18224c"/>
-  <rect x="24" y="32" width="16" height="4" fill="#18224c"/>
-  <rect x="20" y="40" width="24" height="16" fill="#4b5f9d"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#fffaf2"/>
+      <stop offset="65%" stop-color="#f4e4cf"/>
+      <stop offset="100%" stop-color="#e4cfad"/>
+    </radialGradient>
+    <radialGradient id="skin" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#ffe9cc"/>
+      <stop offset="100%" stop-color="#dca67a"/>
+    </radialGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4b450"/>
+      <stop offset="100%" stop-color="#cc7f2a"/>
+    </linearGradient>
+    <linearGradient id="dress" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6b13f"/>
+      <stop offset="100%" stop-color="#d47d2d"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
+  <ellipse cx="32" cy="58" rx="14" ry="4" fill="#847056" opacity="0.24"/>
+  <path d="M16 52c1-8 7-12 16-12s15 4 16 12" fill="url(#dress)"/>
+  <path d="M22 18c2-5 6-8 10-8s8 3 10 8c-1 6-5 9-10 9s-9-3-10-9z" fill="url(#hair)"/>
+  <circle cx="32" cy="29" r="12.5" fill="url(#skin)"/>
+  <ellipse cx="27" cy="28" rx="1.8" ry="2.6" fill="#1d335e"/>
+  <ellipse cx="37" cy="28" rx="1.8" ry="2.6" fill="#1d335e"/>
+  <ellipse cx="32" cy="31" rx="2" ry="1.6" fill="#d8936a"/>
+  <path d="M27 35c1 1 2 1 5 1s4 0 5-1" fill="none" stroke="#9a5c3c" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="32" cy="11" r="2.8" fill="#f8f0a2"/>
+  <path d="M30.8 8.5h2.4v5h-2.4z" fill="#f3df73"/>
+  <path d="M29.5 10.2h5v2.4h-5z" fill="#f3df73"/>
 </svg>

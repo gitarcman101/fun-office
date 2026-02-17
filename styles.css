@@ -380,7 +380,11 @@ body {
   width: 20px;
   height: 20px;
   object-fit: contain;
-  image-rendering: pixelated;
+  image-rendering: auto;
+  filter:
+    drop-shadow(0 1px 1px rgba(29, 32, 46, 0.35))
+    drop-shadow(0 2px 3px rgba(55, 68, 98, 0.2));
+  transform: perspective(100px) rotateX(8deg);
 }
 
 .meeting-agent-name {
@@ -487,8 +491,11 @@ body {
   width: 34px;
   height: 34px;
   object-fit: contain;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 0 3px rgba(60, 61, 55, 0.25));
+  image-rendering: auto;
+  filter:
+    drop-shadow(0 1px 1px rgba(29, 32, 46, 0.45))
+    drop-shadow(0 4px 6px rgba(55, 68, 98, 0.22));
+  transform: perspective(120px) rotateX(8deg);
 }
 
 .name-tag {
