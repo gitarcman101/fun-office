@@ -324,15 +324,7 @@ function createDeskAgentNode(agent, facing = "down") {
 
   node.dataset.agentId = agent.id;
   node.classList.add(`status-${agent.status}`);
-  if (facing === "up") {
-    node.classList.add("is-facing-up");
-  } else if (facing === "left") {
-    node.classList.add("is-facing-left");
-  } else if (facing === "right") {
-    node.classList.add("is-facing-right");
-  } else {
-    node.classList.add("is-facing-down");
-  }
+  node.classList.add("is-facing-down");
   if (appState.selectedAgentId === agent.id) {
     node.classList.add("is-selected");
   }
