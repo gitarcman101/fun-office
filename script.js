@@ -15,10 +15,11 @@ const SB_URL_KEY = "agentoffice_sb_url_v1";
 const SB_ANON_KEY = "agentoffice_sb_anon_v1";
 const HEARTBEAT_MS = 12000;
 
-const PM_SEAT_ID = "U2";
+const PM_SEAT_ID = "PM_FIXED";
 const SEAT_IDS = ["U1", "U2", "U3", "U4", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "R1", "R2"];
 const MAX_CONCURRENT_USERS = SEAT_IDS.length;
 const AVAILABLE_SEATS = SEAT_IDS;
+const MEETING_SEAT_IDS = new Set(["R1", "R2"]);
 
 const AVATARS = [
   "assets/avatars/avatar-ops.svg",
@@ -54,6 +55,7 @@ const nicknameForm = document.querySelector("#nicknameForm");
 const nicknameInput = document.querySelector("#nicknameInput");
 const roomCode = document.querySelector("#roomCode");
 const syncInfo = document.querySelector("#syncInfo");
+const fixedPmSeat = document.querySelector("#fixedPmSeat");
 
 const appState = {
   roomId: "",
@@ -119,22 +121,93 @@ function getDisplayRole(seatId) {
 }
 
 function sortBySeat(a, b) {
-  return SEAT_IDS.indexOf(a.seatId) - SEAT_IDS.indexOf(b.seatId);
+  const aIndex = SEAT_IDS.indexOf(a.seatId);
+  const bIndex = SEAT_IDS.indexOf(b.seatId);
+  const safeA = aIndex === -1 ? -1 : aIndex;
+  const safeB = bIndex === -1 ? -1 : bIndex;
+  return safeA - safeB;
 }
 
-function renderEmptyDesk(slot) {
+async function moveLocalToSeat(targetSeatId) {
+  if (!appState.localJoined) return;
+  if (!SEAT_IDS.includes(targetSeatId)) return;
+
+  const me = getLocalParticipant();
+  if (!me || me.seatId === targetSeatId) return;
+
+  const occupied = appState.participants.some(
+    (participant) => !participant.isLocal && participant.seatId === targetSeatId
+  );
+  if (occupied) {
+    alert("이미 사용 중인 자리입니다.");
+    return;
+  }
+
+  appState.selectedAgentId = appState.clientId;
+  localStorage.setItem(`${NICKNAME_KEY}:seat:${appState.roomId}`, targetSeatId);
+  await publishPresence({ seatId: targetSeatId, status: "focus" });
+}
+
+function renderFixedPm() {
+  if (!fixedPmSeat) return;
+  fixedPmSeat.textContent = "";
+
+  const node = deskTemplate.content.firstElementChild.cloneNode(true);
+  const image = node.querySelector(".avatar-img");
+  const tag = node.querySelector(".name-tag");
+
+  node.dataset.agentId = PM_AGENT.id;
+  node.classList.add("status-active", "is-fixed-pm");
+  if (appState.selectedAgentId === PM_AGENT.id) {
+    node.classList.add("is-selected");
+  }
+
+  image.src = PM_AGENT.avatar;
+  image.alt = `${PM_AGENT.name} 아바타`;
+  tag.textContent = PM_AGENT.name;
+  tag.addEventListener("click", () => {
+    appState.selectedAgentId = PM_AGENT.id;
+    rerender();
+  });
+
+  fixedPmSeat.appendChild(node);
+}
+
+function renderEmptyDesk(slot, seatId) {
+  const isMeetingSeat = MEETING_SEAT_IDS.has(seatId);
   const emptyNode = document.createElement("article");
   emptyNode.className = "desk-agent is-empty";
 
-  const desk = document.createElement("div");
-  desk.className = "desk";
+  if (isMeetingSeat) {
+    emptyNode.classList.add("is-meeting-entry");
+    const entryButton = document.createElement("button");
+    entryButton.type = "button";
+    entryButton.className = "move-seat-btn";
+    entryButton.textContent = appState.localJoined ? "회의실 입장" : "회의실";
+    entryButton.disabled = !appState.localJoined;
+    entryButton.addEventListener("click", () => moveLocalToSeat(seatId));
+    emptyNode.appendChild(entryButton);
+  } else {
+    const desk = document.createElement("div");
+    desk.className = "desk";
 
-  const label = document.createElement("span");
-  label.className = "empty-tag";
-  label.textContent = "빈 자리";
+    const label = document.createElement("span");
+    label.className = "empty-tag";
+    label.textContent = "빈 자리";
 
-  emptyNode.appendChild(desk);
-  emptyNode.appendChild(label);
+    emptyNode.appendChild(desk);
+    emptyNode.appendChild(label);
+
+    if (appState.localJoined) {
+      const moveButton = document.createElement("button");
+      moveButton.type = "button";
+      moveButton.className = "move-seat-btn";
+      moveButton.textContent = "여기로 이동";
+      moveButton.addEventListener("click", () => moveLocalToSeat(seatId));
+      emptyNode.appendChild(moveButton);
+    }
+  }
+
   slot.appendChild(emptyNode);
 }
 
@@ -145,7 +218,7 @@ function renderOffice(agents) {
     const agent = agents.find((item) => item.seatId === seatId);
 
     if (!agent) {
-      renderEmptyDesk(slot);
+      renderEmptyDesk(slot, seatId);
       return;
     }
 
@@ -212,10 +285,11 @@ function renderCrew(agents, updateMyStatus) {
 }
 
 function rerender(updateMyStatus = appState.updateMyStatus) {
-  const hasUserAtPmSeat = appState.participants.some((participant) => participant.seatId === PM_SEAT_ID);
-  const agents = (hasUserAtPmSeat ? [...appState.participants] : [PM_AGENT, ...appState.participants]).sort(sortBySeat);
-  renderOffice(agents);
-  renderCrew(agents, updateMyStatus);
+  const seatAgents = [...appState.participants].sort(sortBySeat);
+  const crewAgents = [PM_AGENT, ...seatAgents];
+  renderFixedPm();
+  renderOffice(seatAgents);
+  renderCrew(crewAgents, updateMyStatus);
 }
 
 function getLocalParticipant() {
@@ -249,6 +323,7 @@ function parsePresenceState(channel) {
     const list = Array.isArray(items) ? items : [];
     list.forEach((item) => {
       if (!item || !item.clientId || !item.nickname || !item.seatId) return;
+      if (!SEAT_IDS.includes(item.seatId)) return;
       const prev = latestByClient.get(item.clientId);
       if (!prev || (item.updatedAt || 0) >= (prev.updatedAt || 0)) {
         latestByClient.set(item.clientId, item);

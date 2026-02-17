@@ -231,6 +231,17 @@ body {
 .p1 { top: 68px; }
 .p2 { top: 198px; }
 
+.fixed-pm-seat {
+  position: absolute;
+  top: 56px;
+  left: 72px;
+  z-index: 3;
+}
+
+.fixed-pm-seat .desk-agent {
+  width: 108px;
+}
+
 .office-layout {
   display: grid;
   grid-template-columns: 1fr 220px;
@@ -288,6 +299,7 @@ body {
 
 .meeting-slot {
   min-height: 118px;
+  place-items: center;
 }
 
 .desk-agent {
@@ -475,6 +487,30 @@ body {
   color: #707368;
 }
 
+.move-seat-btn {
+  border: 1px solid rgba(132, 141, 109, 0.62);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f8f6ea, #e1ddcc);
+  color: #4c4e45;
+  font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.move-seat-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.meeting-slot .desk-agent.is-meeting-entry {
+  opacity: 0.96;
+  width: auto;
+  gap: 0;
+  margin-top: 22px;
+}
+
 .nickname-modal {
   position: fixed;
   inset: 0;
@@ -565,4 +601,9 @@ body {
   }
 
   .p2 { top: 292px; }
+
+  .fixed-pm-seat {
+    top: 64px;
+    left: 60px;
+  }
 }
