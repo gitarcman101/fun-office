@@ -14,6 +14,7 @@ const ROOM_PARAM = "room";
 const SB_URL_KEY = "agentoffice_sb_url_v1";
 const SB_ANON_KEY = "agentoffice_sb_anon_v1";
 const HEARTBEAT_MS = 12000;
+const BUBBLE_TTL_MS = 18000;
 
 const PM_SEAT_ID = "PM_FIXED";
 const DESK_SEAT_IDS = ["U1", "U2", "U3", "U4", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"];
@@ -96,7 +97,8 @@ const appState = {
   subscribed: false,
   updateMyStatus: () => {},
   messages: [],
-  seenMessageIds: new Set()
+  seenMessageIds: new Set(),
+  bubbles: new Map()
 };
 
 function ensureClientId() {
@@ -119,9 +121,9 @@ function resolveRoomId() {
 
 function resolveSupabaseConfig() {
   const params = new URLSearchParams(window.location.search);
-
   const queryUrl = params.get("sbUrl") || "";
   const queryKey = params.get("sbKey") || "";
+
   if (queryUrl && queryKey) {
     localStorage.setItem(SB_URL_KEY, queryUrl);
     localStorage.setItem(SB_ANON_KEY, queryKey);
@@ -130,7 +132,6 @@ function resolveSupabaseConfig() {
   const globalConfig = window.SUPABASE_CONFIG || {};
   const url = (globalConfig.url || localStorage.getItem(SB_URL_KEY) || "").trim();
   const anonKey = (globalConfig.anonKey || localStorage.getItem(SB_ANON_KEY) || "").trim();
-
   return { url, anonKey };
 }
 
@@ -155,8 +156,7 @@ function getMeetingRoomIdFromSeatId(seatId) {
 
 function getDisplayRole(seatId) {
   const roomId = getMeetingRoomIdFromSeatId(seatId);
-  if (roomId) return `회의실 ${roomId}`;
-  return "데스크";
+  return roomId ? `회의실 ${roomId}` : "데스크";
 }
 
 function sortBySeat(a, b) {
@@ -167,6 +167,10 @@ function sortBySeat(a, b) {
   return safeA - safeB;
 }
 
+function getLocalParticipant() {
+  return appState.participants.find((participant) => participant.isLocal);
+}
+
 function getTakenSeatsByOthers() {
   return new Set(
     appState.participants
@@ -174,10 +178,6 @@ function getTakenSeatsByOthers() {
       .map((participant) => participant.seatId)
       .filter((seatId) => AVAILABLE_SEATS.includes(seatId))
   );
-}
-
-function getLocalParticipant() {
-  return appState.participants.find((participant) => participant.isLocal);
 }
 
 function pickSeatForLocal(currentSeatId) {
@@ -197,6 +197,39 @@ function pickMeetingSeat(roomId, currentSeatId = "") {
   return roomSeats.find((seatId) => !takenByOthers.has(seatId)) || null;
 }
 
+function getBubbleText(clientId) {
+  if (!clientId) return "";
+  const bubble = appState.bubbles.get(clientId);
+  if (!bubble) return "";
+  if (bubble.until < Date.now()) {
+    appState.bubbles.delete(clientId);
+    return "";
+  }
+  return bubble.text;
+}
+
+function setBubble(clientId, text) {
+  if (!clientId || !text) return;
+  appState.bubbles.set(clientId, {
+    text: String(text).trim().slice(0, 60),
+    until: Date.now() + BUBBLE_TTL_MS
+  });
+}
+
+function cleanupBubbles() {
+  const now = Date.now();
+  let changed = false;
+  appState.bubbles.forEach((value, key) => {
+    if (value.until < now) {
+      appState.bubbles.delete(key);
+      changed = true;
+    }
+  });
+  if (changed) {
+    rerender(cycleMyStatus);
+  }
+}
+
 async function moveLocalToSeat(targetSeatId) {
   if (!appState.localJoined) return;
   if (!AVAILABLE_SEATS.includes(targetSeatId)) return;
@@ -204,8 +237,7 @@ async function moveLocalToSeat(targetSeatId) {
   const me = getLocalParticipant();
   if (!me || me.seatId === targetSeatId) return;
 
-  const takenByOthers = getTakenSeatsByOthers();
-  if (takenByOthers.has(targetSeatId)) {
+  if (getTakenSeatsByOthers().has(targetSeatId)) {
     alert("이미 사용 중인 자리입니다.");
     return;
   }
@@ -216,16 +248,13 @@ async function moveLocalToSeat(targetSeatId) {
 }
 
 async function moveLocalToMeetingRoom(roomId) {
-  if (!appState.localJoined) return;
-  if (!MEETING_ROOM_IDS.includes(roomId)) return;
-
+  if (!appState.localJoined || !MEETING_ROOM_IDS.includes(roomId)) return;
   const me = getLocalParticipant();
   const nextSeat = pickMeetingSeat(roomId, me ? me.seatId : "");
   if (!nextSeat) {
     alert(`회의실 ${roomId}는 최대 ${MEETING_ROOM_CAPACITY}명까지 입장 가능합니다.`);
     return;
   }
-
   await moveLocalToSeat(nextSeat);
 }
 
@@ -242,15 +271,28 @@ function updateMessageInputState() {
   messageInput.placeholder = enabled ? "메시지 입력 (Enter 전송)" : "입장 후 메시지를 입력할 수 있습니다.";
 }
 
-function createDeskAgentNode(agent) {
+function createDeskAgentNode(agent, facing = "down") {
   const node = deskTemplate.content.firstElementChild.cloneNode(true);
   const image = node.querySelector(".avatar-img");
   const tag = node.querySelector(".name-tag");
 
   node.dataset.agentId = agent.id;
   node.classList.add(`status-${agent.status}`);
+  if (facing === "up") {
+    node.classList.add("is-facing-up");
+  } else {
+    node.classList.add("is-facing-down");
+  }
   if (appState.selectedAgentId === agent.id) {
     node.classList.add("is-selected");
+  }
+
+  const bubbleText = getBubbleText(agent.clientId);
+  if (bubbleText) {
+    const bubble = document.createElement("div");
+    bubble.className = "speech-bubble";
+    bubble.textContent = bubbleText;
+    node.prepend(bubble);
   }
 
   image.src = agent.avatar;
@@ -267,10 +309,12 @@ function createDeskAgentNode(agent) {
 function renderFixedPm() {
   if (!fixedPmSeat) return;
   fixedPmSeat.textContent = "";
-  fixedPmSeat.appendChild(createDeskAgentNode(PM_AGENT));
+  fixedPmSeat.appendChild(createDeskAgentNode(PM_AGENT, "down"));
 }
 
 function renderEmptyDesk(slot, seatId) {
+  if (seatId === "U1") return;
+
   const emptyNode = document.createElement("article");
   emptyNode.className = "desk-agent is-empty";
 
@@ -300,12 +344,13 @@ function renderOffice(seatAgents) {
   deskSlots.forEach((slot) => {
     slot.textContent = "";
     const seatId = slot.dataset.seatId;
+    const facing = slot.dataset.facing || "down";
     const agent = seatAgents.find((item) => item.seatId === seatId);
     if (!agent) {
       renderEmptyDesk(slot, seatId);
       return;
     }
-    slot.appendChild(createDeskAgentNode(agent));
+    slot.appendChild(createDeskAgentNode(agent, facing));
   });
 }
 
@@ -339,6 +384,14 @@ function renderMeetingRooms(seatAgents) {
           chip.className = `meeting-agent status-${agent.status}`;
           if (appState.selectedAgentId === agent.id) {
             chip.classList.add("is-selected");
+          }
+
+          const bubbleText = getBubbleText(agent.clientId);
+          if (bubbleText) {
+            const bubble = document.createElement("span");
+            bubble.className = "meeting-bubble";
+            bubble.textContent = bubbleText;
+            chip.appendChild(bubble);
           }
 
           const image = document.createElement("img");
@@ -455,25 +508,43 @@ function renderMessages() {
   }
 }
 
+function resolveSpeakerClientId(message) {
+  if (message.clientId) return message.clientId;
+  const matched = appState.participants.filter((p) => p.name === message.nickname);
+  if (matched.length === 1) return matched[0].clientId;
+  if (appState.localJoined) {
+    const me = getLocalParticipant();
+    if (me && me.name === message.nickname) return me.clientId;
+  }
+  return "";
+}
+
 function appendMessage(message) {
   if (!message || !message.id || appState.seenMessageIds.has(message.id)) return;
   appState.seenMessageIds.add(message.id);
   appState.messages.push(message);
+
   if (appState.messages.length > MAX_MESSAGES) {
     const removed = appState.messages.splice(0, appState.messages.length - MAX_MESSAGES);
     removed.forEach((item) => appState.seenMessageIds.delete(item.id));
   }
-  renderMessages();
+
+  const clientId = resolveSpeakerClientId(message);
+  if (clientId) {
+    setBubble(clientId, message.text);
+  }
+  rerender(cycleMyStatus);
 }
 
 function normalizeMessagePayload(payload) {
   if (!payload || typeof payload !== "object") return null;
   const id = String(payload.id || "").trim();
+  const clientId = String(payload.clientId || "").trim();
   const nickname = String(payload.nickname || "").trim().slice(0, 12);
   const text = String(payload.text || "").trim().slice(0, 220);
   const createdAt = Number(payload.createdAt || Date.now());
   if (!id || !nickname || !text) return null;
-  return { id, nickname, text, createdAt };
+  return { id, clientId, nickname, text, createdAt };
 }
 
 async function sendMessage(rawText) {
@@ -486,6 +557,7 @@ async function sendMessage(rawText) {
 
   const payload = {
     id: `m-${appState.clientId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    clientId: appState.clientId,
     nickname: me.name,
     text,
     createdAt: Date.now()
@@ -560,7 +632,6 @@ async function publishPresence(patch = {}) {
   };
 
   if (!appState.subscribed || !appState.channel) return;
-
   const result = await appState.channel.track(appState.localPresence);
   if (result !== "ok") {
     updateSyncLabel("동기화 지연");
@@ -597,6 +668,7 @@ function tryJoinWithNickname(rawName) {
     alert(`현재 동시 접속 최대 ${MAX_CONCURRENT_USERS}명입니다. 잠시 후 재시도해주세요.`);
     return false;
   }
+
   const preferredSeat = localStorage.getItem(`${NICKNAME_KEY}:seat:${appState.roomId}`) || "";
   const seatId = pickSeatForLocal(preferredSeat);
   if (!seatId) {
@@ -606,7 +678,6 @@ function tryJoinWithNickname(rawName) {
 
   appState.localJoined = true;
   appState.selectedAgentId = appState.clientId;
-
   localStorage.setItem(NICKNAME_KEY, nickname);
   localStorage.setItem(`${NICKNAME_KEY}:seat:${appState.roomId}`, seatId);
 
@@ -671,9 +742,7 @@ function bindCommonActions() {
   shuffleStatusBtn.addEventListener("click", cycleMyStatus);
 
   Object.entries(meetingRoomEnterButtons).forEach(([roomId, button]) => {
-    button.addEventListener("click", () => {
-      moveLocalToMeetingRoom(roomId);
-    });
+    button.addEventListener("click", () => moveLocalToMeetingRoom(roomId));
   });
 
   if (messageForm && messageInput) {
@@ -723,12 +792,8 @@ function initSupabaseRealtime() {
       refreshParticipants();
       updateSyncLabel(`연결됨 / 접속 ${appState.participants.length}/${MAX_CONCURRENT_USERS}명 / ${new Date().toLocaleTimeString()}`);
     })
-    .on("presence", { event: "join" }, () => {
-      refreshParticipants();
-    })
-    .on("presence", { event: "leave" }, () => {
-      refreshParticipants();
-    })
+    .on("presence", { event: "join" }, refreshParticipants)
+    .on("presence", { event: "leave" }, refreshParticipants)
     .on("broadcast", { event: "message" }, ({ payload }) => {
       const message = normalizeMessagePayload(payload);
       if (message) {
@@ -764,8 +829,11 @@ function initSupabaseRealtime() {
     }
   }, HEARTBEAT_MS);
 
+  const bubbleCleaner = setInterval(cleanupBubbles, 1200);
+
   window.addEventListener("beforeunload", async () => {
     clearInterval(heartbeat);
+    clearInterval(bubbleCleaner);
     if (appState.channel) {
       try { await appState.channel.untrack(); } catch (_error) {}
       supabase.removeChannel(appState.channel);
