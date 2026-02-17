@@ -1,0 +1,86 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>에이전트 오피스 워크스페이스</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="top-bar">
+      <div class="workspace-meta">
+        <p class="workspace-note">공유 아바타 워크스페이스</p>
+        <div class="sync-strip">
+          <span class="sync-pill is-live">목업 모드</span>
+          <span class="room-code">룸 demo-01</span>
+          <span class="sync-time">로컬 미리보기</span>
+        </div>
+      </div>
+      <div class="workspace-actions">
+        <button class="action-btn" id="copyLinkBtn" type="button">공유 링크 복사</button>
+        <button class="action-btn" id="shuffleStatusBtn" type="button">상태 섞기</button>
+      </div>
+    </header>
+
+    <section class="panel office-panel">
+      <header class="panel-head">
+        <h1>에이전트 오피스</h1>
+      </header>
+
+      <div class="office-map">
+        <div class="beach-row" aria-hidden="true">
+          <div class="sun"></div>
+          <div class="cloud c1"></div>
+          <div class="cloud c2"></div>
+          <div class="wave"></div>
+        </div>
+
+        <div class="floor-grid">
+          <div class="plant p1"></div>
+          <div class="plant p2"></div>
+
+          <div class="desk-slot" data-agent-id="ops-01"></div>
+          <div class="desk-slot" data-agent-id="pm-02"></div>
+          <div class="desk-slot" data-agent-id="be-03"></div>
+          <div class="desk-slot" data-agent-id="data-04"></div>
+          <div class="desk-slot" data-agent-id="design-05"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel crew-panel">
+      <header class="panel-head">
+        <h2>에이전트 크루 덱</h2>
+      </header>
+      <p class="deck-hint">목업 아바타 이미지는 assets/avatars 폴더의 SVG 파일을 사용합니다.</p>
+      <div class="crew-grid" id="crewGrid"></div>
+    </section>
+  </main>
+
+  <template id="deskAvatarTemplate">
+    <article class="desk-agent">
+      <div class="status-fire" aria-hidden="true"></div>
+      <div class="desk"></div>
+      <img class="avatar-img" alt="" />
+      <button class="name-tag" type="button"></button>
+    </article>
+  </template>
+
+  <template id="crewCardTemplate">
+    <article class="crew-card">
+      <button class="crew-select" type="button">
+        <img class="crew-avatar-img" alt="" />
+        <span class="crew-role"></span>
+        <strong class="crew-name"></strong>
+      </button>
+      <button class="status-pill" type="button"></button>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
