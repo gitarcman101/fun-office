@@ -266,13 +266,16 @@ body {
   clip-path: polygon(50% 0%, 100% 58%, 73% 100%, 27% 100%, 0 58%);
 }
 
-.p1 { top: 68px; }
-.p2 { top: 198px; }
+.p1 { top: 72px; }
+.p2 { top: 236px; }
+.p3 { top: 400px; }
 
 .fixed-pm-seat {
-  position: absolute;
-  top: 56px;
-  left: 72px;
+  width: 100%;
+  min-width: 118px;
+  min-height: 146px;
+  display: grid;
+  place-items: end center;
   z-index: 3;
 }
 
@@ -886,6 +889,11 @@ body {
     min-width: 110px;
   }
 
+  .fixed-pm-seat {
+    min-height: 136px;
+    min-width: 110px;
+  }
+
   .desk-agent {
     width: 124px;
   }
@@ -898,12 +906,8 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .p2 { top: 292px; }
-
-  .fixed-pm-seat {
-    top: 64px;
-    left: 60px;
-  }
+  .p2 { top: 254px; }
+  .p3 { top: 438px; }
 
   .message-form {
     grid-template-columns: 1fr;

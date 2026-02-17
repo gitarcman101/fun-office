@@ -18,7 +18,7 @@ const HEARTBEAT_MS = 12000;
 const BUBBLE_TTL_MS = 18000;
 
 const PM_SEAT_ID = "PM_FIXED";
-const DESK_SEAT_IDS = ["U1", "U2", "U3", "U4", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"];
+const DESK_SEAT_IDS = ["U2", "U3", "U4", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"];
 const MEETING_ROOM_IDS = ["A", "B"];
 const MEETING_ROOM_CAPACITY = 10;
 const MEETING_SEAT_IDS_BY_ROOM = Object.fromEntries(
@@ -52,7 +52,7 @@ const AVATARS = [
 const PM_AGENT = {
   id: "pm-fixed",
   clientId: "pm-fixed",
-  name: "김피엠",
+  name: "팁스맨",
   role: "PM",
   status: "active",
   avatar: AVATARS[0],
