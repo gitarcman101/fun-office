@@ -15,14 +15,14 @@
       <div class="workspace-meta">
         <p class="workspace-note">공유 아바타 워크스페이스</p>
         <div class="sync-strip">
-          <span class="sync-pill is-live">목업 모드</span>
-          <span class="room-code">룸 demo-01</span>
-          <span class="sync-time">로컬 미리보기</span>
+          <span class="sync-pill is-live" id="syncMode">실시간 동기화</span>
+          <span class="room-code" id="roomCode">룸 DEMO-01</span>
+          <span class="sync-time" id="syncInfo">연결중</span>
         </div>
       </div>
       <div class="workspace-actions">
         <button class="action-btn" id="copyLinkBtn" type="button">공유 링크 복사</button>
-        <button class="action-btn" id="shuffleStatusBtn" type="button">상태 섞기</button>
+        <button class="action-btn" id="shuffleStatusBtn" type="button">내 상태 변경</button>
       </div>
     </header>
 
@@ -43,11 +43,38 @@
           <div class="plant p1"></div>
           <div class="plant p2"></div>
 
-          <div class="desk-slot" data-agent-id="ops-01"></div>
-          <div class="desk-slot" data-agent-id="pm-02"></div>
-          <div class="desk-slot" data-agent-id="be-03"></div>
-          <div class="desk-slot" data-agent-id="data-04"></div>
-          <div class="desk-slot" data-agent-id="design-05"></div>
+          <div class="office-layout">
+            <section class="desk-area">
+              <div class="desk-row upper">
+                <div class="desk-slot" data-seat-id="U1"></div>
+                <div class="desk-slot" data-seat-id="U2"></div>
+                <div class="desk-slot" data-seat-id="U3"></div>
+                <div class="desk-slot" data-seat-id="U4"></div>
+              </div>
+
+              <div class="desk-row lower">
+                <div class="desk-slot" data-seat-id="L1"></div>
+                <div class="desk-slot" data-seat-id="L2"></div>
+                <div class="desk-slot" data-seat-id="L3"></div>
+                <div class="desk-slot" data-seat-id="L4"></div>
+                <div class="desk-slot" data-seat-id="L5"></div>
+                <div class="desk-slot" data-seat-id="L6"></div>
+                <div class="desk-slot" data-seat-id="L7"></div>
+                <div class="desk-slot" data-seat-id="L8"></div>
+              </div>
+            </section>
+
+            <aside class="meeting-area">
+              <div class="meeting-room">
+                <h3>회의실 A</h3>
+                <div class="desk-slot meeting-slot" data-seat-id="R1"></div>
+              </div>
+              <div class="meeting-room">
+                <h3>회의실 B</h3>
+                <div class="desk-slot meeting-slot" data-seat-id="R2"></div>
+              </div>
+            </aside>
+          </div>
         </div>
       </div>
     </section>
@@ -56,7 +83,7 @@
       <header class="panel-head">
         <h2>에이전트 크루 덱</h2>
       </header>
-      <p class="deck-hint">목업 아바타 이미지는 assets/avatars 폴더의 SVG 파일을 사용합니다.</p>
+      <p class="deck-hint">실시간 접속자 목록 (최대 14석, 김피엠 포함)</p>
       <div class="crew-grid" id="crewGrid"></div>
     </section>
   </main>
@@ -90,6 +117,6 @@
     </article>
   </template>
 
-  <script src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>

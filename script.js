@@ -1,3 +1,6 @@
+import * as Y from "https://cdn.jsdelivr.net/npm/yjs@13.6.18/+esm";
+import { WebsocketProvider } from "https://cdn.jsdelivr.net/npm/y-websocket@1.5.0/+esm";
+
 const STATUS_ORDER = ["active", "focus", "idle", "offline"];
 const STATUS_LABEL = {
   active: "활동중",
@@ -6,7 +9,36 @@ const STATUS_LABEL = {
   offline: "오프라인"
 };
 
-const NICKNAME_KEY = "agentoffice_nickname_v1";
+const CLIENT_KEY = "agentoffice_client_v1";
+const NICKNAME_KEY = "agentoffice_nickname_v2";
+const ROOM_PARAM = "room";
+
+const PM_SEAT_ID = "U2";
+const SEAT_IDS = ["U1", "U2", "U3", "U4", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "R1", "R2"];
+const AVAILABLE_SEATS = SEAT_IDS.filter((seatId) => seatId !== PM_SEAT_ID);
+
+const AVATARS = [
+  "assets/avatars/avatar-ops.svg",
+  "assets/avatars/avatar-be.svg",
+  "assets/avatars/avatar-data.svg",
+  "assets/avatars/avatar-design.svg",
+  "assets/avatars/avatar-plan.svg",
+  "assets/avatars/avatar-qa.svg",
+  "assets/avatars/avatar-pm.svg"
+];
+
+const PM_AGENT = {
+  id: "pm-fixed",
+  clientId: "pm-fixed",
+  name: "김피엠",
+  role: "PM",
+  status: "active",
+  avatar: "assets/avatars/avatar-pm.svg",
+  seatId: PM_SEAT_ID,
+  isLocal: false,
+  isPm: true,
+  updatedAt: 0
+};
 
 const deskSlots = document.querySelectorAll(".desk-slot");
 const crewGrid = document.querySelector("#crewGrid");
@@ -17,18 +49,83 @@ const shuffleStatusBtn = document.querySelector("#shuffleStatusBtn");
 const nicknameModal = document.querySelector("#nicknameModal");
 const nicknameForm = document.querySelector("#nicknameForm");
 const nicknameInput = document.querySelector("#nicknameInput");
+const roomCode = document.querySelector("#roomCode");
+const syncInfo = document.querySelector("#syncInfo");
 
 const appState = {
-  selectedAgentId: "pm-02",
-  nickname: "",
-  agents: []
+  roomId: "",
+  clientId: "",
+  selectedAgentId: PM_AGENT.id,
+  participants: [],
+  localJoined: false,
+  updateMyStatus: () => {}
 };
 
-function buildAgents(nickname) {
-  return [
-    { id: "pm-02", name: "김피엠", role: "PM", status: "active", avatar: "assets/avatars/avatar-pm.svg" },
-    { id: "be-03", name: nickname, role: "팀원", status: "focus", avatar: "assets/avatars/avatar-ops.svg" }
-  ];
+function ensureClientId() {
+  let clientId = localStorage.getItem(CLIENT_KEY);
+  if (!clientId) {
+    clientId = `c-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(CLIENT_KEY, clientId);
+  }
+  return clientId;
+}
+
+function resolveRoomId() {
+  const params = new URLSearchParams(window.location.search);
+  const room = (params.get(ROOM_PARAM) || "demo-01").trim();
+  const roomId = room.slice(0, 40) || "demo-01";
+  params.set(ROOM_PARAM, roomId);
+  const next = `${window.location.pathname}?${params.toString()}`;
+  history.replaceState(null, "", next);
+  return roomId;
+}
+
+function hashText(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function avatarForName(name) {
+  return AVATARS[hashText(name) % AVATARS.length];
+}
+
+function getDisplayRole(seatId) {
+  return seatId.startsWith("R") ? "회의실" : "팀원";
+}
+
+function getParticipantsFromAwareness(awareness) {
+  const latestByClient = new Map();
+
+  awareness.getStates().forEach((value) => {
+    if (!value || !value.clientId || !value.nickname || !value.seatId) {
+      return;
+    }
+
+    const prev = latestByClient.get(value.clientId);
+    if (!prev || (value.updatedAt || 0) >= (prev.updatedAt || 0)) {
+      latestByClient.set(value.clientId, value);
+    }
+  });
+
+  return Array.from(latestByClient.values()).map((state) => ({
+    id: state.clientId,
+    clientId: state.clientId,
+    name: state.nickname,
+    role: getDisplayRole(state.seatId),
+    status: STATUS_ORDER.includes(state.status) ? state.status : "active",
+    avatar: state.avatar || avatarForName(state.nickname),
+    seatId: state.seatId,
+    isLocal: state.clientId === appState.clientId,
+    isPm: false,
+    updatedAt: state.updatedAt || 0
+  }));
+}
+
+function sortBySeat(a, b) {
+  return SEAT_IDS.indexOf(a.seatId) - SEAT_IDS.indexOf(b.seatId);
 }
 
 function renderEmptyDesk(slot) {
@@ -47,10 +144,11 @@ function renderEmptyDesk(slot) {
   slot.appendChild(emptyNode);
 }
 
-function renderOffice() {
+function renderOffice(agents) {
   deskSlots.forEach((slot) => {
     slot.textContent = "";
-    const agent = appState.agents.find((item) => item.id === slot.dataset.agentId);
+    const seatId = slot.dataset.seatId;
+    const agent = agents.find((item) => item.seatId === seatId);
 
     if (!agent) {
       renderEmptyDesk(slot);
@@ -63,21 +161,26 @@ function renderOffice() {
 
     node.dataset.agentId = agent.id;
     node.classList.add(`status-${agent.status}`);
-    if (appState.selectedAgentId === agent.id) node.classList.add("is-selected");
+    if (appState.selectedAgentId === agent.id) {
+      node.classList.add("is-selected");
+    }
 
     image.src = agent.avatar;
     image.alt = `${agent.name} 아바타`;
     tag.textContent = agent.name;
-    tag.addEventListener("click", () => selectAgent(agent.id));
+    tag.addEventListener("click", () => {
+      appState.selectedAgentId = agent.id;
+      rerender();
+    });
 
     slot.appendChild(node);
   });
 }
 
-function renderCrew() {
+function renderCrew(agents, updateMyStatus) {
   crewGrid.textContent = "";
 
-  appState.agents.forEach((agent) => {
+  agents.forEach((agent) => {
     const card = cardTemplate.content.firstElementChild.cloneNode(true);
     const selectBtn = card.querySelector(".crew-select");
     const image = card.querySelector(".crew-avatar-img");
@@ -86,7 +189,9 @@ function renderCrew() {
     const statusBtn = card.querySelector(".status-pill");
 
     card.dataset.agentId = agent.id;
-    if (appState.selectedAgentId === agent.id) card.classList.add("is-selected");
+    if (appState.selectedAgentId === agent.id) {
+      card.classList.add("is-selected");
+    }
 
     image.src = agent.avatar;
     image.alt = `${agent.name} 아바타`;
@@ -96,86 +201,184 @@ function renderCrew() {
     statusBtn.classList.add(`status-${agent.status}`);
     statusBtn.textContent = STATUS_LABEL[agent.status];
 
-    selectBtn.addEventListener("click", () => selectAgent(agent.id));
-    statusBtn.addEventListener("click", () => cycleStatus(agent.id));
+    if (!agent.isLocal || agent.isPm) {
+      statusBtn.disabled = true;
+      statusBtn.title = "내 상태만 변경할 수 있습니다.";
+    } else {
+      statusBtn.addEventListener("click", () => updateMyStatus());
+    }
+
+    selectBtn.addEventListener("click", () => {
+      appState.selectedAgentId = agent.id;
+      rerender();
+    });
 
     crewGrid.appendChild(card);
   });
 }
 
-function rerender() {
-  renderOffice();
-  renderCrew();
+function rerender(updateMyStatus = appState.updateMyStatus) {
+  const agents = [PM_AGENT, ...appState.participants].sort(sortBySeat);
+  renderOffice(agents);
+  renderCrew(agents, updateMyStatus);
 }
 
-function selectAgent(agentId) {
-  if (!appState.agents.some((agent) => agent.id === agentId)) return;
-  appState.selectedAgentId = agentId;
-  rerender();
+function getLocalParticipant() {
+  return appState.participants.find((participant) => participant.isLocal);
 }
 
-function cycleStatus(agentId) {
-  const target = appState.agents.find((agent) => agent.id === agentId);
-  if (!target) return;
+function pickSeatForLocal(currentSeatId) {
+  const takenByOthers = new Set(
+    appState.participants
+      .filter((participant) => !participant.isLocal)
+      .map((participant) => participant.seatId)
+      .filter((seatId) => seatId && seatId !== PM_SEAT_ID)
+  );
 
-  const current = STATUS_ORDER.indexOf(target.status);
-  target.status = STATUS_ORDER[(current + 1) % STATUS_ORDER.length];
-  rerender();
+  if (currentSeatId && !takenByOthers.has(currentSeatId) && currentSeatId !== PM_SEAT_ID) {
+    return currentSeatId;
+  }
+
+  return AVAILABLE_SEATS.find((seatId) => !takenByOthers.has(seatId)) || null;
 }
 
-function shuffleStatuses() {
-  appState.agents.forEach((agent) => {
-    agent.status = STATUS_ORDER[Math.floor(Math.random() * STATUS_ORDER.length)];
+function initRealtime() {
+  appState.clientId = ensureClientId();
+  appState.roomId = resolveRoomId();
+  roomCode.textContent = `룸 ${appState.roomId.toUpperCase()}`;
+
+  const doc = new Y.Doc();
+  const provider = new WebsocketProvider("wss://demos.yjs.dev", `agentoffice-${appState.roomId}`, doc);
+  const awareness = provider.awareness;
+
+  function updateSyncLabel(text) {
+    syncInfo.textContent = text;
+  }
+
+  provider.on("status", (event) => {
+    const status = event.status === "connected" ? "연결됨" : "재연결중";
+    updateSyncLabel(`${status} / ${new Date().toLocaleTimeString()}`);
   });
-  rerender();
-}
 
-async function copyShareLink() {
-  const link = window.location.href;
-  try {
-    await navigator.clipboard.writeText(link);
-    const original = copyLinkBtn.textContent;
-    copyLinkBtn.textContent = "복사됨";
-    setTimeout(() => { copyLinkBtn.textContent = original; }, 900);
-  } catch (_error) {
-    window.prompt("이 링크를 복사하세요:", link);
-  }
-}
-
-function startWithNickname(rawNickname) {
-  const nickname = (rawNickname || "").trim().slice(0, 12);
-  if (!nickname) return;
-
-  appState.nickname = nickname;
-  appState.agents = buildAgents(nickname);
-  appState.selectedAgentId = "be-03";
-  localStorage.setItem(NICKNAME_KEY, nickname);
-
-  nicknameModal.classList.remove("is-open");
-  rerender();
-}
-
-function init() {
-  const saved = localStorage.getItem(NICKNAME_KEY);
-  if (saved) {
-    startWithNickname(saved);
-    return;
+  function updateLocalPresence(patch) {
+    const current = awareness.getLocalState() || {};
+    awareness.setLocalState({
+      ...current,
+      ...patch,
+      clientId: appState.clientId,
+      updatedAt: Date.now()
+    });
   }
 
-  appState.agents = [{ id: "pm-02", name: "김피엠", role: "PM", status: "active", avatar: "assets/avatars/avatar-pm.svg" }];
-  appState.selectedAgentId = "pm-02";
-  rerender();
+  function refreshParticipants() {
+    appState.participants = getParticipantsFromAwareness(awareness).sort(sortBySeat);
 
-  nicknameModal.classList.add("is-open");
-  nicknameInput.focus();
+    const me = getLocalParticipant();
+    if (appState.localJoined && me) {
+      const nextSeat = pickSeatForLocal(me.seatId);
+      if (!nextSeat) {
+        awareness.setLocalState(null);
+        appState.localJoined = false;
+        alert("빈 자리가 없습니다. 잠시 후 다시 시도해주세요.");
+        nicknameModal.classList.add("is-open");
+      } else if (nextSeat !== me.seatId) {
+        updateLocalPresence({ seatId: nextSeat });
+        localStorage.setItem(`${NICKNAME_KEY}:seat:${appState.roomId}`, nextSeat);
+      }
+    }
+
+    rerender(cycleMyStatus);
+  }
+
+  awareness.on("change", refreshParticipants);
+
+  function tryJoinWithNickname(rawName) {
+    const nickname = (rawName || "").trim().slice(0, 12);
+    if (!nickname) {
+      return false;
+    }
+
+    appState.participants = getParticipantsFromAwareness(awareness).sort(sortBySeat);
+    const preferredSeat = localStorage.getItem(`${NICKNAME_KEY}:seat:${appState.roomId}`) || "";
+    const seatId = pickSeatForLocal(preferredSeat);
+    if (!seatId) {
+      alert("현재 14석이 모두 사용 중입니다.");
+      return false;
+    }
+
+    localStorage.setItem(NICKNAME_KEY, nickname);
+    localStorage.setItem(`${NICKNAME_KEY}:seat:${appState.roomId}`, seatId);
+
+    appState.localJoined = true;
+    updateLocalPresence({
+      nickname,
+      seatId,
+      status: "focus",
+      avatar: avatarForName(nickname)
+    });
+    appState.selectedAgentId = appState.clientId;
+    nicknameModal.classList.remove("is-open");
+    return true;
+  }
+
+  function cycleMyStatus() {
+    const me = getLocalParticipant();
+    if (!me) {
+      return;
+    }
+    const current = STATUS_ORDER.indexOf(me.status);
+    const next = STATUS_ORDER[(current + 1) % STATUS_ORDER.length];
+    updateLocalPresence({ status: next });
+  }
+
+  appState.updateMyStatus = cycleMyStatus;
+
+  nicknameForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    tryJoinWithNickname(nicknameInput.value);
+  });
+
+  shuffleStatusBtn.addEventListener("click", cycleMyStatus);
+  copyLinkBtn.addEventListener("click", async () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set(ROOM_PARAM, appState.roomId);
+    const link = url.toString();
+    try {
+      await navigator.clipboard.writeText(link);
+      const original = copyLinkBtn.textContent;
+      copyLinkBtn.textContent = "복사됨";
+      setTimeout(() => { copyLinkBtn.textContent = original; }, 900);
+    } catch (_error) {
+      window.prompt("이 링크를 복사하세요:", link);
+    }
+  });
+
+  const savedNickname = localStorage.getItem(NICKNAME_KEY);
+  if (savedNickname) {
+    nicknameInput.value = savedNickname;
+    const joined = tryJoinWithNickname(savedNickname);
+    if (!joined) {
+      nicknameModal.classList.add("is-open");
+      nicknameInput.focus();
+    }
+  } else {
+    appState.participants = [];
+    rerender(cycleMyStatus);
+    nicknameModal.classList.add("is-open");
+    nicknameInput.focus();
+  }
+
+  const heartbeat = setInterval(() => {
+    const local = awareness.getLocalState();
+    if (local && appState.localJoined) {
+      updateLocalPresence({});
+    }
+  }, 12000);
+
+  window.addEventListener("beforeunload", () => {
+    clearInterval(heartbeat);
+    awareness.setLocalState(null);
+  });
 }
 
-nicknameForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  startWithNickname(nicknameInput.value);
-});
-
-copyLinkBtn.addEventListener("click", copyShareLink);
-shuffleStatusBtn.addEventListener("click", shuffleStatuses);
-
-init();
+initRealtime();

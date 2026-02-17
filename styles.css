@@ -193,13 +193,8 @@ body {
 }
 
 .floor-grid {
-  min-height: 362px;
+  min-height: 470px;
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 30px;
-  align-content: start;
-  justify-items: center;
   padding: 34px 24px;
   background:
     linear-gradient(166deg, rgba(255, 255, 255, 0.33), transparent 35%),
@@ -236,18 +231,64 @@ body {
 .p1 { top: 68px; }
 .p2 { top: 198px; }
 
+.office-layout {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 20px;
+  min-height: 390px;
+}
+
+.desk-area {
+  display: grid;
+  gap: 24px;
+}
+
+.desk-row.upper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 16px;
+}
+
+.desk-row.lower {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 16px;
+}
+
+.meeting-area {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.meeting-room {
+  border: 1px solid rgba(136, 139, 122, 0.55);
+  background: linear-gradient(180deg, rgba(250, 250, 244, 0.8), rgba(228, 226, 213, 0.86));
+  border-radius: 10px;
+  padding: 10px 8px 12px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.meeting-room h3 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #5a5d52;
+}
+
 .desk-slot {
-  width: 120px;
+  width: 100%;
+  min-width: 90px;
   min-height: 128px;
   display: grid;
   place-items: end center;
 }
 
-.desk-slot:nth-of-type(1) { grid-column: 1; grid-row: 2; }
-.desk-slot:nth-of-type(2) { grid-column: 2; grid-row: 1; }
-.desk-slot:nth-of-type(3) { grid-column: 3; grid-row: 1; }
-.desk-slot:nth-of-type(4) { grid-column: 2; grid-row: 2; }
-.desk-slot:nth-of-type(5) { grid-column: 3; grid-row: 2; }
+.meeting-slot {
+  min-height: 118px;
+}
 
 .desk-agent {
   position: relative;
@@ -501,15 +542,22 @@ body {
   }
 
   .floor-grid {
-    grid-template-columns: repeat(2, minmax(120px, 1fr));
-    min-height: 470px;
+    min-height: 860px;
   }
 
-  .desk-slot:nth-of-type(1) { grid-column: 1; grid-row: 1; }
-  .desk-slot:nth-of-type(2) { grid-column: 2; grid-row: 1; }
-  .desk-slot:nth-of-type(3) { grid-column: 1; grid-row: 2; }
-  .desk-slot:nth-of-type(4) { grid-column: 2; grid-row: 2; }
-  .desk-slot:nth-of-type(5) { grid-column: 1; grid-row: 3; }
+  .office-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .desk-row.upper,
+  .desk-row.lower {
+    grid-template-columns: repeat(2, minmax(90px, 1fr));
+  }
+
+  .meeting-area {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+  }
 
   .p2 { top: 292px; }
 }
