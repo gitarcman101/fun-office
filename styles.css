@@ -108,9 +108,11 @@ body {
 }
 
 .quick-message-form {
-  width: min(430px, 58%);
+  margin-left: auto;
+  width: min(620px, 74%);
+  max-width: 100%;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 

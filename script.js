@@ -803,6 +803,12 @@ function bindCommonActions() {
       event.preventDefault();
       await submitMessageFromInput(quickMessageInput);
     });
+
+    quickMessageInput.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      await submitMessageFromInput(quickMessageInput);
+    });
   }
 }
 
