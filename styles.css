@@ -561,7 +561,8 @@ body {
   position: absolute;
   left: 50%;
   top: -30px;
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(1.7);
+  transform-origin: 50% 100%;
   max-width: 126px;
   padding: 4px 8px;
   border-radius: 10px;
