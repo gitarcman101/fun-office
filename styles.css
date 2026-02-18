@@ -546,6 +546,7 @@ body {
 .name-tag {
   border: 0;
   padding: 7px 12px;
+  margin-top: 2px;
   border-radius: 3px;
   background: #d5d2c4;
   color: #4a4b42;
