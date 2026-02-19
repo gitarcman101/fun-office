@@ -233,6 +233,7 @@ body {
 .floor-grid {
   min-height: calc(470px * var(--office-height-scale));
   position: relative;
+  overflow: hidden;
   padding: 34px 24px;
   background:
     linear-gradient(166deg, rgba(255, 255, 255, 0.33), transparent 35%),
@@ -293,7 +294,7 @@ body {
   min-width: 118px;
   min-height: 146px;
   display: grid;
-  place-items: end center;
+  place-items: start center;
   z-index: 3;
 }
 
@@ -306,6 +307,15 @@ body {
   grid-template-columns: 1fr 220px;
   gap: 20px;
   min-height: calc(390px * var(--office-height-scale));
+  position: relative;
+  z-index: 2;
+}
+
+.world-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .desk-area {
@@ -331,12 +341,33 @@ body {
 
 .meeting-room {
   border: 1px solid rgba(136, 139, 122, 0.55);
+  border-left-color: transparent;
   background: linear-gradient(180deg, rgba(250, 250, 244, 0.8), rgba(228, 226, 213, 0.86));
   border-radius: 10px;
   padding: 10px 10px 12px;
   display: grid;
   justify-items: stretch;
   gap: 8px;
+  position: relative;
+}
+
+.meeting-room::before,
+.meeting-room::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 1px;
+  background: rgba(136, 139, 122, 0.55);
+}
+
+.meeting-room::before {
+  top: 0;
+  height: 30%;
+}
+
+.meeting-room::after {
+  bottom: 0;
+  height: 30%;
 }
 
 .meeting-room h3 {
@@ -476,7 +507,11 @@ body {
   min-width: 118px;
   min-height: 146px;
   display: grid;
-  place-items: end center;
+  place-items: start center;
+}
+
+.static-desk {
+  margin-top: 10px;
 }
 
 .desk-agent {
@@ -590,6 +625,61 @@ body {
   border-right: 1px solid rgba(130, 136, 114, 0.6);
   border-bottom: 1px solid rgba(130, 136, 114, 0.6);
   rotate: 45deg;
+}
+
+.world-agent {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-width: 96px;
+  pointer-events: none;
+}
+
+.world-avatar-img {
+  width: 52px;
+  height: 52px;
+}
+
+.world-agent.dir-left .world-avatar-img {
+  transform: perspective(120px) rotateX(8deg) scale(1.7) scaleX(-1);
+}
+
+.world-agent .status-fire {
+  top: -10px;
+}
+
+.world-agent.status-active .status-fire,
+.world-agent.status-focus .status-fire {
+  opacity: 1;
+}
+
+.world-name-tag {
+  pointer-events: auto;
+  margin-top: 10px;
+}
+
+.world-agent .speech-bubble {
+  top: -88px;
+}
+
+.world-agent .speech-bubble.room-left {
+  left: auto;
+  right: 100%;
+  top: -68px;
+  transform: translateX(-14px) scale(1.7);
+  text-align: left;
+  max-width: 240px;
+}
+
+.world-agent .speech-bubble.room-left::after {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  border-right: 1px solid rgba(130, 136, 114, 0.6);
+  border-top: 1px solid rgba(130, 136, 114, 0.6);
+  border-bottom: 0;
 }
 
 .desk-agent.status-active .name-tag { background: var(--status-active); color: #f5f6ea; }
