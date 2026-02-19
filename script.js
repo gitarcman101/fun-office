@@ -290,15 +290,10 @@ function recalculateGeometry() {
     if (!roomId || !rect) return;
     appState.roomZones[roomId] = rect;
     const wall = 8;
-    const doorHeight = Math.min(106, rect.h * 0.46);
-    const doorTop = rect.y + rect.h / 2 - doorHeight / 2;
-    const doorBottom = rect.y + rect.h / 2 + doorHeight / 2;
     appState.colliders.push(
       { x: rect.x, y: rect.y, w: rect.w, h: wall },
       { x: rect.x, y: rect.y + rect.h - wall, w: rect.w, h: wall },
-      { x: rect.x + rect.w - wall, y: rect.y, w: wall, h: rect.h },
-      { x: rect.x, y: rect.y, w: wall, h: doorTop - rect.y },
-      { x: rect.x, y: doorBottom, w: wall, h: rect.y + rect.h - doorBottom }
+      { x: rect.x + rect.w - wall, y: rect.y, w: wall, h: rect.h }
     );
     appState.spawnPoints.push({ x: rect.x + rect.w * 0.56, y: rect.y + rect.h * 0.66 });
   });
