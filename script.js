@@ -115,6 +115,7 @@ const appState = {
   bubbles: new Map(),
   colliders: [],
   spawnPoints: [],
+  desks: [],
   roomZones: {},
   pressedKeys: new Set(),
   lastDirection: "down",
@@ -263,6 +264,7 @@ function prepareStaticDesks() {
 function recalculateGeometry() {
   appState.colliders = [];
   appState.spawnPoints = [];
+  appState.desks = [];
   appState.roomZones = {};
 
   const deskNodes = Array.from(document.querySelectorAll(".static-desk"));
@@ -272,6 +274,11 @@ function recalculateGeometry() {
     appState.colliders.push({ x: rect.x - 2, y: rect.y - 2, w: rect.w + 4, h: rect.h + 6 });
     const spawn = { x: rect.x + rect.w / 2, y: rect.y + rect.h + 56 };
     appState.spawnPoints.push(spawn);
+    appState.desks.push({
+      node: deskNode,
+      seatX: spawn.x,
+      seatY: spawn.y
+    });
     if (index === 0) {
       PM_AGENT.x = spawn.x;
       PM_AGENT.y = spawn.y;
@@ -301,6 +308,22 @@ function recalculateGeometry() {
   appState.participants = appState.participants.map((p) => {
     const valid = findValidSpotAround(p.x, p.y);
     return { ...p, x: valid.x, y: valid.y, role: getDisplayRole(valid.x, valid.y) };
+  });
+}
+
+function updateDeskMonitorFires() {
+  if (!appState.desks.length) return;
+  appState.desks.forEach((desk) => desk.node.classList.remove("is-hot"));
+  const agents = [PM_AGENT, ...appState.participants];
+  appState.desks.forEach((desk) => {
+    const hot = agents.some((agent) => {
+      const isWorking = agent.status === "active" || agent.status === "focus";
+      if (!isWorking) return false;
+      const dx = Math.abs(agent.x - desk.seatX);
+      const dy = Math.abs(agent.y - desk.seatY);
+      return dx <= 42 && dy <= 34;
+    });
+    if (hot) desk.node.classList.add("is-hot");
   });
 }
 
@@ -387,11 +410,6 @@ function createWorldAgentNode(agent) {
     bubble.textContent = bubbleText;
     node.appendChild(bubble);
   }
-
-  const flame = document.createElement("span");
-  flame.className = "status-fire";
-  flame.setAttribute("aria-hidden", "true");
-  node.appendChild(flame);
 
   const image = document.createElement("img");
   image.className = "avatar-img world-avatar-img";
@@ -523,6 +541,7 @@ function renderMessages() {
 
 function rerender(updateMyStatus = appState.updateMyStatus) {
   appState.participants = appState.participants.map((p) => ({ ...p, role: getDisplayRole(p.x, p.y) }));
+  updateDeskMonitorFires();
   renderWorld();
   renderMeetingRooms();
   renderCrew([PM_AGENT, ...appState.participants], updateMyStatus);
