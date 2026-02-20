@@ -353,6 +353,13 @@ function isLocalInRoom(roomId) {
   return detectRoomIdAt(me.x, me.y) === roomId;
 }
 
+function isParticipantInMeetingA(agent) {
+  if (!agent) return false;
+  if (agent.isLocal && appState.sceneMode === "meetingA") return true;
+  if (detectRoomIdAt(agent.x, agent.y) === "A") return true;
+  return agent.role === "회의실 A";
+}
+
 function isInsideMeetingDoor(pos) {
   return (
     pos.x >= MEETING_SCENE_DOOR.x &&
@@ -374,7 +381,7 @@ function renderMeetingScene() {
   const localPos = clampMeetingPos(appState.meetingLocalPos || { x: 52, y: 70 });
   appState.meetingLocalPos = localPos;
   const members = appState.participants
-    .filter((agent) => detectRoomIdAt(agent.x, agent.y) === "A")
+    .filter((agent) => isParticipantInMeetingA(agent))
     .slice(0, MEETING_ROOM_CAPACITY)
     .sort((a, b) => {
       if (a.isLocal) return -1;
@@ -492,6 +499,7 @@ function moveLocalInMeetingScene(dx, dy, dir) {
   appState.meetingLocalPos = next;
   me.dir = dir;
   me.updatedAt = Date.now();
+  me.role = "회의실 A";
   renderMeetingScene();
 }
 function distanceSq(a, b) {
@@ -814,12 +822,38 @@ function parsePresenceState(channel) {
 
 function refreshParticipants() {
   if (!appState.channel) return;
+  const prevLocal = getLocalParticipant();
   const parsed = parsePresenceState(appState.channel);
   const byClient = new Map(parsed.map((p) => [p.clientId, p]));
   appState.participants.forEach((oldP) => {
     const nowP = byClient.get(oldP.clientId);
     if (nowP && (oldP.updatedAt || 0) > (nowP.updatedAt || 0)) byClient.set(oldP.clientId, oldP);
   });
+
+  if (appState.localJoined && !byClient.has(appState.clientId)) {
+    if (prevLocal) {
+      byClient.set(appState.clientId, { ...prevLocal, isLocal: true, isPm: false });
+    } else if (appState.localPresence) {
+      const px = Number(appState.localPresence.x || 120);
+      const py = Number(appState.localPresence.y || 200);
+      const point = findValidSpotAround(px, py);
+      byClient.set(appState.clientId, {
+        id: appState.clientId,
+        clientId: appState.clientId,
+        name: String(appState.localPresence.nickname || "").trim() || "게스트",
+        role: getDisplayRole(point.x, point.y),
+        status: STATUS_ORDER.includes(appState.localPresence.status) ? appState.localPresence.status : "focus",
+        avatar: appState.localPresence.avatar || resolveLocalAvatar(),
+        x: point.x,
+        y: point.y,
+        dir: String(appState.localPresence.dir || "down"),
+        isLocal: true,
+        isPm: false,
+        updatedAt: Date.now()
+      });
+    }
+  }
+
   appState.participants = Array.from(byClient.values()).sort((a, b) => {
     if (a.isLocal) return -1;
     if (b.isLocal) return 1;
@@ -998,6 +1032,7 @@ function moveLocalBy(dx, dy, dir) {
   if (detectRoomIdAt(me.x, me.y) === "A") {
     appState.sceneMode = "meetingA";
     appState.meetingLocalPos = { x: 52, y: 70 };
+    me.role = "회의실 A";
   }
   queuePresencePatch({ x: me.x, y: me.y, dir: me.dir, role: me.role });
   if (moved) broadcastMove(me.x, me.y, me.dir);
@@ -1022,6 +1057,7 @@ function moveToMeetingRoom(roomId) {
   if (roomId === "A") {
     appState.sceneMode = "meetingA";
     appState.meetingLocalPos = { x: 52, y: 70 };
+    me.role = "회의실 A";
   }
   queuePresencePatch({ x: me.x, y: me.y, role: me.role }, true);
   broadcastMove(me.x, me.y, me.dir || "down");
