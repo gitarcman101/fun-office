@@ -68,6 +68,10 @@ const deskSlots = Array.from(document.querySelectorAll(".desk-slot"));
 const fixedPmSeat = document.querySelector("#fixedPmSeat");
 const floorGrid = document.querySelector(".floor-grid");
 const worldLayer = document.querySelector("#worldLayer");
+const officeMap = document.querySelector(".office-map");
+const meetingScene = document.querySelector("#meetingScene");
+const meetingSceneLayer = document.querySelector("#meetingSceneLayer");
+const meetingBackBtn = document.querySelector("#meetingBackBtn");
 const crewGrid = document.querySelector("#crewGrid");
 const cardTemplate = document.querySelector("#crewCardTemplate");
 const copyLinkBtn = document.querySelector("#copyLinkBtn");
@@ -99,6 +103,10 @@ const MAX_MESSAGE_LENGTH = Math.max(
   1,
   Number(messageInput?.maxLength || quickMessageInput?.maxLength || 220)
 );
+const MEETING_SCENE_POSITIONS = [
+  { x: 16, y: 28 }, { x: 30, y: 20 }, { x: 50, y: 16 }, { x: 70, y: 20 }, { x: 84, y: 28 },
+  { x: 82, y: 58 }, { x: 68, y: 72 }, { x: 50, y: 78 }, { x: 32, y: 72 }, { x: 18, y: 58 }
+];
 
 const appState = {
   roomId: "",
@@ -327,6 +335,97 @@ function updateDeskMonitorFires() {
   });
 }
 
+function getBubbleLengthClass(text) {
+  const len = String(text || "").trim().length;
+  if (len >= 52) return "is-xlong";
+  if (len >= 26) return "is-long";
+  return "";
+}
+
+function isLocalInRoom(roomId) {
+  const me = getLocalParticipant();
+  if (!me) return false;
+  return detectRoomIdAt(me.x, me.y) === roomId;
+}
+
+function renderMeetingScene() {
+  if (!meetingSceneLayer) return;
+  const members = appState.participants
+    .filter((agent) => detectRoomIdAt(agent.x, agent.y) === "A")
+    .slice(0, MEETING_ROOM_CAPACITY);
+
+  meetingSceneLayer.textContent = "";
+  if (!members.length) {
+    const empty = document.createElement("p");
+    empty.className = "meeting-scene-empty";
+    empty.textContent = "회의실 A에 참가자가 없습니다.";
+    meetingSceneLayer.appendChild(empty);
+    return;
+  }
+
+  members.forEach((agent, index) => {
+    const pos = MEETING_SCENE_POSITIONS[index % MEETING_SCENE_POSITIONS.length];
+    const node = document.createElement("article");
+    node.className = `meeting-scene-agent status-${agent.status}`;
+    if (appState.selectedAgentId === agent.id) node.classList.add("is-selected");
+    node.style.left = `${pos.x}%`;
+    node.style.top = `${pos.y}%`;
+
+    const bubbleText = getBubbleText(agent.clientId);
+    if (bubbleText) {
+      const bubble = document.createElement("div");
+      bubble.className = "speech-bubble";
+      const bubbleClass = getBubbleLengthClass(bubbleText);
+      if (bubbleClass) bubble.classList.add(bubbleClass);
+      bubble.textContent = bubbleText;
+      node.appendChild(bubble);
+    }
+
+    const image = document.createElement("img");
+    image.className = "avatar-img meeting-scene-avatar";
+    image.src = agent.avatar;
+    image.alt = `${agent.name} avatar`;
+    node.appendChild(image);
+
+    const nameBtn = document.createElement("button");
+    nameBtn.type = "button";
+    nameBtn.className = "name-tag meeting-scene-name";
+    nameBtn.textContent = agent.name;
+    nameBtn.addEventListener("click", () => {
+      appState.selectedAgentId = agent.id;
+      rerender(cycleMyStatus);
+    });
+    node.appendChild(nameBtn);
+
+    meetingSceneLayer.appendChild(node);
+  });
+}
+
+function updateSceneMode() {
+  const inMeetingA = isLocalInRoom("A");
+  if (officeMap) officeMap.hidden = inMeetingA;
+  if (meetingScene) meetingScene.hidden = !inMeetingA;
+  if (inMeetingA) {
+    renderMeetingScene();
+  } else if (meetingSceneLayer) {
+    meetingSceneLayer.textContent = "";
+  }
+}
+
+function moveLocalOutFromMeetingA() {
+  const me = getLocalParticipant();
+  const zone = appState.roomZones["A"];
+  if (!me || !zone) return;
+  const target = findValidSpotAround(zone.x - 34, zone.y + zone.h * 0.55);
+  me.x = target.x;
+  me.y = target.y;
+  me.updatedAt = Date.now();
+  me.role = getDisplayRole(me.x, me.y);
+  queuePresencePatch({ x: me.x, y: me.y, role: me.role }, true);
+  broadcastMove(me.x, me.y, me.dir || "down");
+  rerender(cycleMyStatus);
+}
+
 function distanceSq(a, b) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
@@ -407,6 +506,8 @@ function createWorldAgentNode(agent) {
     const bubble = document.createElement("div");
     bubble.className = "speech-bubble";
     if (roomId) bubble.classList.add("room-left");
+    const bubbleClass = getBubbleLengthClass(bubbleText);
+    if (bubbleClass) bubble.classList.add(bubbleClass);
     bubble.textContent = bubbleText;
     node.appendChild(bubble);
   }
@@ -544,6 +645,7 @@ function rerender(updateMyStatus = appState.updateMyStatus) {
   updateDeskMonitorFires();
   renderWorld();
   renderMeetingRooms();
+  updateSceneMode();
   renderCrew([PM_AGENT, ...appState.participants], updateMyStatus);
   renderMessages();
   updateMessageInputState();
@@ -796,6 +898,7 @@ function getMoveIntent() {
 function moveLocalBy(dx, dy, dir) {
   const me = getLocalParticipant();
   if (!me) return;
+  if (isLocalInRoom("A")) return;
   let nextX = me.x;
   let nextY = me.y;
   if (dx !== 0) {
@@ -915,6 +1018,9 @@ function bindCommonActions() {
     }
   });
   shuffleStatusBtn.addEventListener("click", cycleMyStatus);
+  if (meetingBackBtn) {
+    meetingBackBtn.addEventListener("click", moveLocalOutFromMeetingA);
+  }
   Object.entries(meetingRoomEnterButtons).forEach(([roomId, button]) => {
     button.addEventListener("click", () => moveToMeetingRoom(roomId));
   });

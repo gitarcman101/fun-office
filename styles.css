@@ -376,8 +376,121 @@ body {
   --room-accent: rgba(92, 129, 162, 0.95);
 }
 
-.meeting-room[data-room-id="B"] {
-  --room-accent: rgba(138, 108, 84, 0.92);
+.meeting-scene {
+  margin-top: 14px;
+  border: 1px solid rgba(126, 133, 110, 0.42);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(247, 245, 234, 0.95), rgba(233, 230, 216, 0.95));
+  padding: 12px;
+}
+
+.meeting-scene-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.meeting-scene-head h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 1.2px;
+  color: #49543f;
+}
+
+.meeting-scene-map {
+  position: relative;
+  min-height: 420px;
+  border: 1px solid rgba(121, 136, 102, 0.45);
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(192, 225, 204, 0.95), rgba(133, 177, 188, 0.92) 42%, rgba(210, 221, 221, 0.96) 100%);
+}
+
+.meeting-scene-sun {
+  position: absolute;
+  right: 28px;
+  top: 20px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fffde5 0 25%, #ffe09b 60%, #e3be72 100%);
+  box-shadow: 0 0 16px rgba(235, 200, 110, 0.5);
+}
+
+.meeting-scene-table {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: min(76%, 560px);
+  height: 210px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(102, 116, 88, 0.54);
+  background:
+    radial-gradient(ellipse at center, rgba(242, 244, 236, 0.82) 0 34%, rgba(182, 194, 179, 0.92) 90%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 250, 0.8),
+    0 8px 18px rgba(84, 94, 84, 0.2);
+}
+
+.meeting-scene-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.meeting-scene-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  color: #4d5944;
+  font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.meeting-scene-agent {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.meeting-scene-avatar {
+  width: 48px;
+  height: 48px;
+}
+
+.meeting-scene-name {
+  margin-top: 6px;
+  pointer-events: auto;
+}
+
+.meeting-scene-agent.is-selected .meeting-scene-name {
+  box-shadow: 0 0 0 1px rgba(136, 151, 94, 0.58);
+}
+
+.meeting-scene-agent .speech-bubble {
+  top: -62px;
+  transform: translateX(-50%) scale(1.2);
+  max-width: min(66vw, 420px);
+  text-align: left;
+}
+
+.meeting-scene-agent .speech-bubble.is-long {
+  max-width: min(74vw, 540px);
+  font-size: 9px;
+}
+
+.meeting-scene-agent .speech-bubble.is-xlong {
+  max-width: min(82vw, 680px);
+  font-size: 8px;
+  line-height: 1.12;
 }
 
 .meeting-room h3 {
@@ -626,6 +739,8 @@ body {
   top: -30px;
   transform: translateX(-50%) scale(1.7);
   transform-origin: 50% 100%;
+  width: max-content;
+  min-width: 72px;
   max-width: 126px;
   padding: 4px 8px;
   border-radius: 10px;
@@ -637,7 +752,9 @@ body {
   font-weight: 700;
   line-height: 1.25;
   text-align: center;
-  word-break: break-word;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   z-index: 6;
 }
 
@@ -653,6 +770,18 @@ body {
   border-right: 1px solid rgba(130, 136, 114, 0.6);
   border-bottom: 1px solid rgba(130, 136, 114, 0.6);
   rotate: 45deg;
+}
+
+.speech-bubble.is-long {
+  max-width: 220px;
+  font-size: 9px;
+  line-height: 1.18;
+}
+
+.speech-bubble.is-xlong {
+  max-width: 300px;
+  font-size: 8px;
+  line-height: 1.12;
 }
 
 .world-agent {
@@ -690,15 +819,38 @@ body {
 
 .world-agent .speech-bubble {
   top: -74px;
+  transform: translateX(-50%) scale(1.32);
+  max-width: min(56vw, 340px);
+  text-align: left;
+}
+
+.world-agent .speech-bubble.is-long {
+  max-width: min(68vw, 480px);
+  transform: translateX(-50%) scale(1.22);
+}
+
+.world-agent .speech-bubble.is-xlong {
+  max-width: min(80vw, 640px);
+  transform: translateX(-50%) scale(1.12);
 }
 
 .world-agent .speech-bubble.room-left {
   left: auto;
   right: 100%;
   top: -58px;
-  transform: translateX(-14px) scale(1.7);
+  transform: translateX(-10px) scale(1.32);
   text-align: left;
-  max-width: 240px;
+  max-width: min(56vw, 360px);
+}
+
+.world-agent .speech-bubble.room-left.is-long {
+  max-width: min(70vw, 500px);
+  transform: translateX(-10px) scale(1.22);
+}
+
+.world-agent .speech-bubble.room-left.is-xlong {
+  max-width: min(82vw, 660px);
+  transform: translateX(-8px) scale(1.12);
 }
 
 .world-agent .speech-bubble.room-left::after {
