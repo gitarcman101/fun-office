@@ -4,7 +4,7 @@
 **MS Teams 전용 앱 연동 없이 URL 공유**가 가장 빠릅니다.
 
 ## 1) GitHub에 업로드
-1. 새 GitHub 저장소 생성 (예: `agentoffice`)
+1. 새 GitHub 저장소 생성 (예: `fun-office`)
 2. 현재 폴더를 `main` 브랜치로 push
 
 ## 2) GitHub Pages 자동배포 켜기
@@ -19,6 +19,9 @@ GitHub 저장소에서 확인:
 
 배포 URL 형식:
 - `https://<github-username>.github.io/<repository-name>/`
+
+현재 저장소 기준 실행 주소:
+- `https://gitarcman101.github.io/fun-office/`
 
 ## 3) Teams에 공유
 1. Teams 채널에 배포 URL 메시지로 공유

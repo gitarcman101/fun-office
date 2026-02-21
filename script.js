@@ -18,12 +18,12 @@ const MOVE_KEYS = {
   KeyD: { x: 1, y: 0, dir: "right" }
 };
 
-const CLIENT_KEY = "agentoffice_client_v1";
-const NICKNAME_KEY = "agentoffice_nickname_v2";
-const AVATAR_KEY = "agentoffice_avatar_v1";
+const CLIENT_KEY = "funoffice_client_v1";
+const NICKNAME_KEY = "funoffice_nickname_v2";
+const AVATAR_KEY = "funoffice_avatar_v1";
 const ROOM_PARAM = "room";
-const SB_URL_KEY = "agentoffice_sb_url_v1";
-const SB_ANON_KEY = "agentoffice_sb_anon_v1";
+const SB_URL_KEY = "funoffice_sb_url_v1";
+const SB_ANON_KEY = "funoffice_sb_anon_v1";
 
 const HEARTBEAT_MS = 12000;
 const BUBBLE_TTL_MS = 18000;
@@ -134,6 +134,7 @@ const appState = {
   meetingLocalPos: { x: 52, y: 86 },
   pressedKeys: new Set(),
   lastDirection: "down",
+  lastWorldSize: { width: 960, height: 540 },
   moveRaf: 0,
   movePrevTs: 0,
   presenceFlushTimer: 0,
@@ -198,7 +199,13 @@ function getLocalParticipant() {
   return appState.participants.find((p) => p.isLocal);
 }
 function getWorldSize() {
-  return { width: floorGrid?.clientWidth || 0, height: floorGrid?.clientHeight || 0 };
+  const width = floorGrid?.clientWidth || 0;
+  const height = floorGrid?.clientHeight || 0;
+  if (width > 100 && height > 100) {
+    appState.lastWorldSize = { width, height };
+    return { width, height };
+  }
+  return appState.lastWorldSize;
 }
 function toWorldRect(element) {
   if (!element || !floorGrid) return null;
@@ -362,6 +369,32 @@ function isParticipantInMeetingA(agent) {
   return agent.role === "회의실 A";
 }
 
+function getOfficeExitPointFromMeetingA() {
+  const zone = appState.roomZones["A"];
+  if (!zone) return { x: 120, y: 220 };
+
+  const bounds = getWorldSize();
+  const maxX = Math.max(20, bounds.width - 20);
+  const maxY = Math.max(20, bounds.height - 20);
+  const exitY = clamp(zone.y + zone.h * 0.56, 20, maxY);
+  const leftOffsets = [46, 58, 72, 88, 104];
+
+  for (let i = 0; i < leftOffsets.length; i += 1) {
+    const targetX = clamp(zone.x - leftOffsets[i], 20, maxX);
+    const point = findValidSpotAround(targetX, exitY);
+    if (detectRoomIdAt(point.x, point.y) !== "A") {
+      return point;
+    }
+  }
+
+  const fallback = {
+    x: clamp(zone.x - 120, 20, maxX),
+    y: exitY
+  };
+  if (!collidesAt(fallback.x, fallback.y) && detectRoomIdAt(fallback.x, fallback.y) !== "A") return fallback;
+  return findValidSpotAround(fallback.x, fallback.y);
+}
+
 function isInsideMeetingDoor(pos) {
   return (
     pos.x >= MEETING_SCENE_DOOR.x &&
@@ -469,9 +502,11 @@ function renderMeetingScene() {
 }
 function updateSceneMode() {
   const me = getLocalParticipant();
-  const shouldEnterScene = appState.sceneMode === "meetingA" || (me && detectRoomIdAt(me.x, me.y) === "A");
-  if (shouldEnterScene) {
+  const isInMeetingA = Boolean(me && detectRoomIdAt(me.x, me.y) === "A");
+  if (isInMeetingA) {
     appState.sceneMode = "meetingA";
+  } else if (appState.sceneMode === "meetingA") {
+    appState.sceneMode = "office";
   }
 
   const showMeetingScene = appState.sceneMode === "meetingA";
@@ -487,15 +522,18 @@ function updateSceneMode() {
 
 function moveLocalOutFromMeetingA() {
   const me = getLocalParticipant();
-  const zone = appState.roomZones["A"];
-  if (!me || !zone) return;
-  const target = findValidSpotAround(zone.x - 34, zone.y + zone.h * 0.55);
+  if (!me) return;
+  appState.sceneMode = "office";
+  if (officeMap) officeMap.hidden = false;
+  if (meetingScene) meetingScene.hidden = true;
+  recalculateGeometry();
+  const target = getOfficeExitPointFromMeetingA();
   me.x = target.x;
   me.y = target.y;
   me.updatedAt = Date.now();
   me.role = getDisplayRole(me.x, me.y);
-  appState.sceneMode = "office";
   appState.meetingLocalPos = { x: 52, y: 86 };
+  appState.pressedKeys.clear();
   queuePresencePatch({ x: me.x, y: me.y, role: me.role }, true);
   broadcastMove(me.x, me.y, me.dir || "down");
   rerender(cycleMyStatus);
