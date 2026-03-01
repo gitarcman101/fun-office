@@ -112,6 +112,7 @@
         <input id="messageInput" type="text" maxlength="220" placeholder="메시지 입력 (Enter 전송)" />
         <button type="submit">전송</button>
       </form>
+      <span class="char-counter" id="messageCharCounter"></span>
     </section>
 
     <section class="panel crew-panel">
@@ -142,6 +143,8 @@
       <button class="status-pill" type="button"></button>
     </article>
   </template>
+
+  <div class="toast-container" id="toastContainer"></div>
 
   <div class="touch-joystick" id="touchJoystick" hidden>
     <div class="joystick-base" id="joystickBase">

@@ -101,6 +101,8 @@ const meetingRoomAvatarNodes = Object.fromEntries(
 const meetingRoomEnterButtons = Object.fromEntries(
   Array.from(document.querySelectorAll("[data-room-enter]")).map((node) => [node.dataset.roomEnter, node])
 );
+const toastContainer = document.querySelector("#toastContainer");
+const messageCharCounter = document.querySelector("#messageCharCounter");
 const MAX_MESSAGE_LENGTH = Math.max(
   1,
   Number(messageInput?.maxLength || quickMessageInput?.maxLength || 220)
@@ -139,7 +141,14 @@ const appState = {
   presenceSending: false,
   lastPresenceSentAt: 0,
   lastMoveBroadcastAt: 0,
-  lastFullAlertAt: 0
+  lastFullAlertAt: 0,
+  previousParticipantIds: new Set(),
+  agentMoveTimers: new Map(),
+  typingTimers: new Map(),
+  reactions: new Map(),
+  idleTimer: 0,
+  idleStatusBefore: "",
+  lastActivityAt: Date.now()
 };
 
 function ensureClientId() {
@@ -178,6 +187,18 @@ function avatarForName(name) {
 function pickRandomAvatar() {
   return AVATARS.length ? AVATARS[Math.floor(Math.random() * AVATARS.length)] : "";
 }
+function showToast(text) {
+  if (!toastContainer) return;
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.textContent = text;
+  toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("is-leaving");
+    setTimeout(() => toast.remove(), 400);
+  }, 3000);
+}
+
 function resolveLocalAvatar() {
   const storageKey = `${AVATAR_KEY}:${appState.roomId}:${appState.clientId}`;
   const stored = localStorage.getItem(storageKey) || "";
@@ -640,14 +661,39 @@ function cleanupBubbles() {
 const worldNodeCache = new Map();
 
 function updateWorldAgentNode(node, agent) {
-  const newClass = `world-agent status-${agent.status} dir-${agent.dir || "down"}${appState.selectedAgentId === agent.id ? " is-selected" : ""}${detectRoomIdAt(agent.x, agent.y) ? " is-in-room" : ""}`;
+  const isLocal = agent.clientId === appState.clientId || agent.isLocal;
+  let newClass = `world-agent status-${agent.status} dir-${agent.dir || "down"}`;
+  if (appState.selectedAgentId === agent.id) newClass += " is-selected";
+  if (detectRoomIdAt(agent.x, agent.y)) newClass += " is-in-room";
+  if (isLocal) newClass += " is-local";
+
+  // A2: detect movement for walk animation
+  const prevX = parseFloat(node.dataset.prevX || agent.x);
+  const prevY = parseFloat(node.dataset.prevY || agent.y);
+  const moved = Math.abs(agent.x - prevX) > 0.5 || Math.abs(agent.y - prevY) > 0.5;
+  node.dataset.prevX = agent.x;
+  node.dataset.prevY = agent.y;
+  if (moved) {
+    newClass += " is-moving";
+    const key = agent.clientId || agent.id;
+    clearTimeout(appState.agentMoveTimers.get(key));
+    appState.agentMoveTimers.set(key, setTimeout(() => {
+      node.classList.remove("is-moving");
+      appState.agentMoveTimers.delete(key);
+    }, 500));
+  } else if (node.classList.contains("is-moving")) {
+    newClass += " is-moving";
+  }
+
   if (node.className !== newClass) node.className = newClass;
   node.style.transform = `translate(${agent.x}px, ${agent.y}px) translate(-50%, -100%)`;
 
   const roomId = detectRoomIdAt(agent.x, agent.y);
   const bubbleText = getBubbleText(agent.clientId);
+  const typingFrom = appState.typingTimers.has(agent.clientId) && !bubbleText;
   let bubbleEl = node.querySelector(".speech-bubble");
-  if (bubbleText) {
+
+  if (bubbleText || typingFrom) {
     if (!bubbleEl) {
       bubbleEl = document.createElement("div");
       bubbleEl.className = "speech-bubble";
@@ -655,10 +701,30 @@ function updateWorldAgentNode(node, agent) {
     }
     let bubbleClass = "speech-bubble";
     if (roomId) bubbleClass += " room-left";
-    const lenClass = getBubbleLengthClass(bubbleText);
-    if (lenClass) bubbleClass += ` ${lenClass}`;
+    if (bubbleText) {
+      const lenClass = getBubbleLengthClass(bubbleText);
+      if (lenClass) bubbleClass += ` ${lenClass}`;
+    }
+
+    // B5: proximity-based visibility
+    const me = getLocalParticipant();
+    if (me && !isLocal) {
+      const dx = agent.x - me.x;
+      const dy = agent.y - me.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq <= 200 * 200) bubbleClass += " proximity-near";
+      else if (distSq > 400 * 400) bubbleClass += " proximity-far";
+    }
+
     if (bubbleEl.className !== bubbleClass) bubbleEl.className = bubbleClass;
-    if (bubbleEl.textContent !== bubbleText) bubbleEl.textContent = bubbleText;
+
+    if (typingFrom && !bubbleText) {
+      if (!bubbleEl.querySelector(".typing-indicator")) {
+        bubbleEl.innerHTML = '<span class="typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
+      }
+    } else if (bubbleEl.textContent !== bubbleText) {
+      bubbleEl.textContent = bubbleText;
+    }
   } else if (bubbleEl) {
     bubbleEl.remove();
   }
@@ -708,6 +774,8 @@ function renderWorld() {
     let node = worldNodeCache.get(key);
     if (!node) {
       node = createWorldAgentNodeCached(agent);
+      node.classList.add("is-entering");
+      setTimeout(() => node.classList.remove("is-entering"), 300);
       worldNodeCache.set(key, node);
       worldLayer.appendChild(node);
     } else {
@@ -718,8 +786,11 @@ function renderWorld() {
 
   worldNodeCache.forEach((node, key) => {
     if (!activeIds.has(key)) {
-      node.remove();
-      worldNodeCache.delete(key);
+      node.classList.add("is-leaving");
+      setTimeout(() => {
+        node.remove();
+        worldNodeCache.delete(key);
+      }, 250);
     }
   });
 }
@@ -807,6 +878,30 @@ function createMessageItem(message) {
   body.textContent = message.text;
   item.appendChild(meta);
   item.appendChild(body);
+
+  // B4: reaction buttons
+  const bar = document.createElement("div");
+  bar.className = "reaction-bar";
+  const msgReactions = appState.reactions.get(message.id);
+  REACTION_EMOJIS.forEach((emoji) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "reaction-btn";
+    const count = msgReactions?.get(emoji)?.size || 0;
+    const isActive = msgReactions?.get(emoji)?.has(appState.clientId);
+    if (isActive) btn.classList.add("is-active");
+    btn.textContent = count > 0 ? `${emoji}` : emoji;
+    if (count > 0) {
+      const countSpan = document.createElement("span");
+      countSpan.className = "reaction-count";
+      countSpan.textContent = count;
+      btn.appendChild(countSpan);
+    }
+    btn.addEventListener("click", () => broadcastReaction(message.id, emoji));
+    bar.appendChild(btn);
+  });
+  item.appendChild(bar);
+
   return item;
 }
 
@@ -975,6 +1070,26 @@ function refreshParticipants() {
     if (b.isLocal) return 1;
     return (a.updatedAt || 0) - (b.updatedAt || 0);
   });
+
+  // B1: join/leave toast notifications
+  const currentIds = new Set(appState.participants.map((p) => p.clientId));
+  if (appState.previousParticipantIds.size > 0) {
+    currentIds.forEach((id) => {
+      if (!appState.previousParticipantIds.has(id) && id !== appState.clientId) {
+        const p = appState.participants.find((pp) => pp.clientId === id);
+        if (p) showToast(`🏄 ${p.name}님이 입장했습니다`);
+      }
+    });
+    appState.previousParticipantIds.forEach((id) => {
+      if (!currentIds.has(id) && id !== appState.clientId) {
+        const oldP = appState.participants.find((pp) => pp.clientId === id);
+        const name = oldP ? oldP.name : id.slice(0, 8);
+        showToast(`👋 ${name}님이 퇴장했습니다`);
+      }
+    });
+  }
+  appState.previousParticipantIds = currentIds;
+
   updateSyncLabel(`\uc5f0\uacb0\ub428 / \uc811\uc18d ${appState.participants.length}/${MAX_CONCURRENT_USERS}\uba85 / ${new Date().toLocaleTimeString()}`);
   rerender(cycleMyStatus);
 }
@@ -1233,8 +1348,8 @@ function showJoystick() {
 
 function initJoystick() {
   if (!joystickBase || !joystickKnob) return;
-  const BASE_RADIUS = 50;
-  const KNOB_RADIUS = 20;
+  const BASE_RADIUS = 70;
+  const KNOB_RADIUS = 28;
   const MAX_OFFSET = BASE_RADIUS - KNOB_RADIUS;
 
   function updateKnob(clientX, clientY) {
@@ -1336,6 +1451,117 @@ function initNicknameFlow() {
   nicknameInput.focus();
 }
 
+// B3: idle detection
+const IDLE_TIMEOUT_MS = 300000; // 5 minutes
+const OFFLINE_TIMEOUT_MS = 900000; // 15 minutes
+
+function resetActivityTimer() {
+  appState.lastActivityAt = Date.now();
+  if (appState.idleStatusBefore) {
+    const me = getLocalParticipant();
+    if (me && (me.status === "idle" || me.status === "offline")) {
+      me.status = appState.idleStatusBefore;
+      me.updatedAt = Date.now();
+      queuePresencePatch({ status: me.status }, true);
+      rerender(cycleMyStatus);
+    }
+    appState.idleStatusBefore = "";
+  }
+}
+
+function checkIdleStatus() {
+  if (!appState.localJoined) return;
+  const me = getLocalParticipant();
+  if (!me) return;
+  const elapsed = Date.now() - appState.lastActivityAt;
+  if (elapsed >= OFFLINE_TIMEOUT_MS && me.status !== "offline") {
+    if (!appState.idleStatusBefore) appState.idleStatusBefore = me.status;
+    me.status = "offline";
+    me.updatedAt = Date.now();
+    queuePresencePatch({ status: "offline" }, true);
+    rerender(cycleMyStatus);
+  } else if (elapsed >= IDLE_TIMEOUT_MS && me.status !== "idle" && me.status !== "offline") {
+    appState.idleStatusBefore = me.status;
+    me.status = "idle";
+    me.updatedAt = Date.now();
+    queuePresencePatch({ status: "idle" }, true);
+    rerender(cycleMyStatus);
+  }
+}
+
+function initIdleDetection() {
+  const events = ["mousemove", "keydown", "touchstart", "click"];
+  events.forEach((ev) => window.addEventListener(ev, resetActivityTimer, { passive: true }));
+  setInterval(checkIdleStatus, 15000);
+}
+
+// B2: typing indicator broadcast
+let typingDebounceTimer = 0;
+
+function broadcastTyping() {
+  if (!appState.localJoined || !appState.channel || !appState.subscribed) return;
+  const me = getLocalParticipant();
+  if (!me) return;
+  clearTimeout(typingDebounceTimer);
+  typingDebounceTimer = setTimeout(() => {
+    void appState.channel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { clientId: appState.clientId, nickname: me.name }
+    });
+  }, 300);
+}
+
+function handleTypingEvent(payload) {
+  if (!payload || payload.clientId === appState.clientId) return;
+  const clientId = payload.clientId;
+  clearTimeout(appState.typingTimers.get(clientId));
+  appState.typingTimers.set(clientId, setTimeout(() => {
+    appState.typingTimers.delete(clientId);
+    rerender(cycleMyStatus);
+  }, 3000));
+  rerender(cycleMyStatus);
+}
+
+// B6: char counter
+function updateCharCounter(input) {
+  if (!messageCharCounter) return;
+  const len = input.value.length;
+  const max = Number(input.maxLength || MAX_MESSAGE_LENGTH);
+  messageCharCounter.textContent = `${len}/${max}`;
+  messageCharCounter.classList.toggle("is-warning", max - len <= 20);
+}
+
+// B4: reactions
+const REACTION_EMOJIS = ["👍", "😂", "🎉", "❤️"];
+
+function broadcastReaction(messageId, emoji) {
+  if (!appState.localJoined || !appState.channel || !appState.subscribed) return;
+  void appState.channel.send({
+    type: "broadcast",
+    event: "reaction",
+    payload: { messageId, emoji, clientId: appState.clientId }
+  });
+  applyReaction(messageId, emoji, appState.clientId);
+}
+
+function applyReaction(messageId, emoji, clientId) {
+  if (!appState.reactions.has(messageId)) appState.reactions.set(messageId, new Map());
+  const msgReactions = appState.reactions.get(messageId);
+  if (!msgReactions.has(emoji)) msgReactions.set(emoji, new Set());
+  const emojiSet = msgReactions.get(emoji);
+  if (emojiSet.has(clientId)) emojiSet.delete(clientId);
+  else emojiSet.add(clientId);
+  if (emojiSet.size === 0) msgReactions.delete(emoji);
+  rerender(cycleMyStatus);
+}
+
+function handleReactionEvent(payload) {
+  if (!payload || !payload.messageId || !payload.emoji || !payload.clientId) return;
+  if (payload.clientId === appState.clientId) return;
+  applyReaction(payload.messageId, payload.emoji, payload.clientId);
+}
+
 function bindCommonActions() {
   appState.updateMyStatus = cycleMyStatus;
   copyLinkBtn.addEventListener("click", async () => {
@@ -1362,6 +1588,11 @@ function bindCommonActions() {
     messageForm.addEventListener("submit", (event) => {
       event.preventDefault();
       submitMessageFromInput(messageInput);
+      updateCharCounter(messageInput);
+    });
+    messageInput.addEventListener("input", () => {
+      broadcastTyping();
+      updateCharCounter(messageInput);
     });
   }
   if (quickMessageForm && quickMessageInput) {
@@ -1374,6 +1605,7 @@ function bindCommonActions() {
       event.preventDefault();
       quickMessageForm.requestSubmit();
     });
+    quickMessageInput.addEventListener("input", () => broadcastTyping());
   }
 }
 
@@ -1410,6 +1642,8 @@ function initSupabaseRealtime() {
       if (msg) appendMessage(msg);
     })
     .on("broadcast", { event: "move" }, ({ payload }) => upsertParticipantFromMove(payload))
+    .on("broadcast", { event: "typing" }, ({ payload }) => handleTypingEvent(payload))
+    .on("broadcast", { event: "reaction" }, ({ payload }) => handleReactionEvent(payload))
     .subscribe((status) => {
       if (status === "SUBSCRIBED") {
         appState.subscribed = true;
@@ -1430,6 +1664,7 @@ function initSupabaseRealtime() {
   bindCommonActions();
   bindKeyboardMovement();
   initJoystick();
+  initIdleDetection();
   initNicknameFlow();
   updateMessageInputState();
 

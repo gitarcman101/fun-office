@@ -5,3 +5,8 @@ backups/
 .DS_Store
 Thumbs.db
 
+# Dependencies
+node_modules/
+
+# Coverage reports
+coverage/
