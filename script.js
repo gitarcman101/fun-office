@@ -1348,8 +1348,8 @@ function showJoystick() {
 
 function initJoystick() {
   if (!joystickBase || !joystickKnob) return;
-  const BASE_RADIUS = 50;
-  const KNOB_RADIUS = 20;
+  const BASE_RADIUS = 70;
+  const KNOB_RADIUS = 28;
   const MAX_OFFSET = BASE_RADIUS - KNOB_RADIUS;
 
   function updateKnob(clientX, clientY) {
